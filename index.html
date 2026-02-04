@@ -5,207 +5,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vocal Walls - L'Empreinte Sonore Locale</title>
-    <style>
-        :root {
-            --bg-color: #1a1a1a;
-            --text-color: #ededed;
-            --accent-color: #ff4757;
-            /* More vibrant, urban red/pink */
-            --secondary-color: #747d8c;
-            --card-bg: #2f3542;
-        }
 
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 0;
-            line-height: 1.6;
-        }
+    <!-- SEO & Social -->
+    <meta name="description"
+        content="Réalité augmentée sonore pour une ville plus humaine. Découvrez des pèlerinages numériques invisibles à l'œil nu.">
+    <meta property="og:title" content="Vocal Walls - L'Empreinte Sonore Locale">
+    <meta property="og:description" content="Réalité augmentée sonore pour une ville plus humaine.">
+    <meta property="og:image" content="assets/icon.png">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
 
-        header {
-            background: rgba(26, 26, 26, 0.95);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            position: fixed;
-            width: 100%;
-            top: 0;
-            z-index: 1000;
-        }
+    <!-- App Metadata -->
+    <link rel="icon" type="image/png" href="assets/icon.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ff4757">
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 2rem;
-        }
-
-        nav {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            height: 70px;
-        }
-
-        .logo {
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: var(--accent-color);
-            letter-spacing: -1px;
-            text-transform: uppercase;
-        }
-
-        .hero {
-            padding: 160px 0 100px;
-            text-align: center;
-            background: radial-gradient(circle at 50% 50%, rgba(255, 71, 87, 0.15) 0%, transparent 60%);
-        }
-
-        h1 {
-            font-size: 4rem;
-            margin-bottom: 0.5rem;
-            line-height: 1.1;
-            letter-spacing: -2px;
-        }
-
-        p.tagline {
-            font-size: 1.5rem;
-            font-weight: 300;
-            color: #fff;
-            margin-bottom: 2rem;
-        }
-
-        p.subtitle {
-            font-size: 1.1rem;
-            color: var(--secondary-color);
-            max-width: 650px;
-            margin: 0 auto 3rem;
-        }
-
-        .btn {
-            display: inline-block;
-            background-color: var(--accent-color);
-            color: #fff;
-            padding: 14px 36px;
-            border-radius: 4px;
-            text-decoration: none;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            transition: all 0.2s;
-        }
-
-        .btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 0 20px rgba(255, 71, 87, 0.5);
-        }
-
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-            padding: 4rem 0;
-        }
-
-        .card {
-            background: var(--card-bg);
-            padding: 2rem;
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            transition: transform 0.3s;
-        }
-
-        .card:hover {
-            transform: translateY(-5px);
-            border-color: var(--accent-color);
-        }
-
-        .card h3 {
-            color: var(--accent-color);
-            margin-bottom: 0.5rem;
-            font-size: 1.25rem;
-        }
-
-        .card code {
-            display: block;
-            font-size: 0.8rem;
-            color: #bdc3c7;
-            margin-bottom: 1rem;
-            font-family: monospace;
-            background: rgba(0, 0, 0, 0.2);
-            padding: 4px 8px;
-            border-radius: 4px;
-            width: fit-content;
-        }
-
-        .mockup-container {
-            margin-top: 5rem;
-            display: flex;
-            justify-content: center;
-        }
-
-        .mockup {
-            width: 320px;
-            height: 650px;
-            background: #000;
-            border-radius: 40px;
-            border: 8px solid #333;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.8);
-        }
-
-        .app-header {
-            padding: 40px 20px 20px;
-            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
-            position: absolute;
-            top: 0;
-            width: 100%;
-            z-index: 10;
-        }
-
-        .bubble {
-            position: absolute;
-            background: rgba(255, 71, 87, 0.2);
-            border: 2px solid var(--accent-color);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            animation: pulse 2s infinite;
-            cursor: pointer;
-        }
-
-        @keyframes pulse {
-            0% {
-                box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.4);
-            }
-
-            70% {
-                box-shadow: 0 0 0 20px rgba(255, 71, 87, 0);
-            }
-
-            100% {
-                box-shadow: 0 0 0 0 rgba(255, 71, 87, 0);
-            }
-        }
-
-        .decay-bar {
-            height: 4px;
-            background: #333;
-            width: 100%;
-            margin-top: 8px;
-            border-radius: 2px;
-            overflow: hidden;
-        }
-
-        .decay-fill {
-            height: 100%;
-            background: var(--accent-color);
-        }
-    </style>
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
 </head>
 
 <body>
@@ -255,7 +71,7 @@
                     </div>
 
                     <div class="bubble"
-                        style="top: 50%; rights: 20%; left: 60%; width: 100px; height: 100px; border-color: #2ed573; background: rgba(46, 213, 115, 0.2);">
+                        style="top: 50%; right: 20%; left: 60%; width: 100px; height: 100px; border-color: #2ed573; background: rgba(46, 213, 115, 0.2);">
                         <div style="text-align: center;">
                             <div>Secret</div>
                             <div class="decay-bar" style="width: 60px;">
