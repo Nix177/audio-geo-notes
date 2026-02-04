@@ -41,7 +41,11 @@
                 <div class="modal-icon" id="modal-icon">🎵</div>
                 <div>
                     <h3 id="modal-title">Jazz Underground</h3>
-                    <p id="modal-author">Par @artiste_anonyme</p>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <p id="modal-author" style="margin: 0;">Par @artiste_anonyme</p>
+                        <span id="modal-category" class="category-tag">🏛️ Patrimoine</span>
+                        <span id="modal-live" class="live-tag hidden">🔴 LIVE</span>
+                    </div>
                 </div>
             </div>
             <div class="waveform-container">
@@ -92,6 +96,13 @@
                             <span id="location-name">Chargement...</span>
                         </div>
                         <div class="h3-badge" id="h3-cell">H3: --</div>
+                    </div>
+
+                    <!-- Mode Toggle -->
+                    <div class="mode-control">
+                        <button id="mode-toggle" class="mode-btn">
+                            <span id="mode-label">📚 Archive</span>
+                        </button>
                     </div>
 
                     <!-- Interactive Map Container -->

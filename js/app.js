@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        toast.innerHTML = `<span>${type === 'success' ? '✅' : '📍'}</span> ${message}`;
+        toast.innerHTML = `<span>${type === 'success' ? '✅' : type === 'live' ? '🔴' : '📍'}</span> ${message}`;
         container.appendChild(toast);
 
         setTimeout(() => {
@@ -22,44 +22,65 @@ document.addEventListener('DOMContentLoaded', () => {
     const map = L.map('map', {
         zoomControl: false,
         attributionControl: false
-    }).setView(startCoords, 16);
+    }).setView(startCoords, 17); // Higher zoom for detail
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         maxZoom: 20
     }).addTo(map);
 
     // =========================================
-    // 3. USER GEOLOCATION
+    // 3. MODE SYSTEM (Archive / Live)
     // =========================================
-    map.locate({ setView: true, maxZoom: 16 });
+    let currentMode = 'archive'; // 'archive' or 'live'
+    const modeToggle = document.getElementById('mode-toggle');
+    const modeLabel = document.getElementById('mode-label');
+
+    if (modeToggle) {
+        modeToggle.addEventListener('click', () => {
+            currentMode = currentMode === 'archive' ? 'live' : 'archive';
+            updateModeUI();
+            refreshMarkers();
+        });
+    }
+
+    function updateModeUI() {
+        if (!modeLabel) return;
+        if (currentMode === 'live') {
+            modeLabel.textContent = '🔴 LIVE';
+            modeLabel.classList.add('live');
+            showToast('Mode Live activé - Streams en direct', 'live');
+        } else {
+            modeLabel.textContent = '📚 Archive';
+            modeLabel.classList.remove('live');
+            showToast('Mode Archive - Contenus validés', 'info');
+        }
+    }
+
+    // =========================================
+    // 4. USER GEOLOCATION
+    // =========================================
+    map.locate({ setView: true, maxZoom: 17 });
 
     const userIcon = L.divIcon({
         className: 'user-marker',
-        html: '<div style="width: 20px; height: 20px; background: #3742fa; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px #3742fa;"></div>',
-        iconSize: [20, 20]
+        html: '<div style="width: 14px; height: 14px; background: #3742fa; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 10px #3742fa;"></div>',
+        iconSize: [14, 14]
     });
 
     function onLocationFound(e) {
         L.marker(e.latlng, { icon: userIcon }).addTo(map);
         document.getElementById('location-name').textContent = 'Votre position';
-        document.getElementById('h3-cell').textContent = 'H3: ' + generateH3Cell();
-        showToast('📍 Position détectée !', 'success');
-    }
-
-    function generateH3Cell() {
-        return '89283' + Math.random().toString(36).substring(2, 8);
+        showToast('📍 Position détectée', 'success');
     }
 
     map.on('locationfound', onLocationFound);
-
     map.on('locationerror', () => {
-        document.getElementById('location-name').textContent = 'Rue de Rivoli, Paris';
-        document.getElementById('h3-cell').textContent = 'H3: 8928308280fffff';
-        showToast('Mode démo activé (Paris)', 'info');
+        document.getElementById('location-name').textContent = 'Paris, Marais';
+        showToast('Mode démo (Paris)', 'info');
     });
 
     // =========================================
-    // 4. AUDIO ENGINE
+    // 5. AUDIO ENGINE
     // =========================================
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -71,21 +92,19 @@ document.addEventListener('DOMContentLoaded', () => {
         osc.connect(gainNode);
         gainNode.connect(audioCtx.destination);
 
-        if (type === 'jazz') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(220, audioCtx.currentTime);
-            osc.frequency.linearRampToValueAtTime(330, audioCtx.currentTime + 0.3);
-            osc.frequency.linearRampToValueAtTime(440, audioCtx.currentTime + 0.6);
-        } else if (type === 'secret') {
-            osc.type = 'triangle';
-            osc.frequency.value = 600;
-        } else {
-            osc.type = 'sawtooth';
-            osc.frequency.value = 300;
-        }
+        const sounds = {
+            guide: { freq: 330, type: 'sine' },
+            story: { freq: 440, type: 'triangle' },
+            music: { freq: 520, type: 'sawtooth' },
+            live: { freq: 280, type: 'square' }
+        };
+
+        const sound = sounds[type] || sounds.story;
+        osc.type = sound.type;
+        osc.frequency.value = sound.freq;
 
         gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.4, audioCtx.currentTime + 0.1);
+        gainNode.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.1);
         gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
 
         osc.start();
@@ -93,7 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =========================================
-    // 5. MODAL SYSTEM
+    // 6. MODAL SYSTEM
     // =========================================
     const modal = document.getElementById('audio-modal');
     const modalClose = document.getElementById('modal-close');
@@ -103,49 +122,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function openModal(note) {
         currentNote = note;
-        document.getElementById('modal-title').textContent = note.label;
-        document.getElementById('modal-author').textContent = `Par @${note.author || 'anonyme'}`;
-        document.getElementById('modal-icon').textContent = note.type === 'jazz' ? '🎷' : '🔮';
-        document.getElementById('modal-likes').textContent = note.likes || Math.floor(Math.random() * 100);
-        document.getElementById('modal-plays').textContent = note.plays || Math.floor(Math.random() * 500);
+        document.getElementById('modal-title').textContent = note.title;
+        document.getElementById('modal-author').textContent = `Par ${note.author}`;
+        document.getElementById('modal-icon').textContent = note.icon;
+        document.getElementById('modal-likes').textContent = note.likes;
+        document.getElementById('modal-plays').textContent = note.plays;
         document.getElementById('modal-time').textContent = `0:00 / ${formatDuration(note.duration)}`;
+        document.getElementById('modal-category').textContent = note.category;
 
-        drawWaveform();
-        animateProgress(note.duration);
+        // Live indicator
+        const liveIndicator = document.getElementById('modal-live');
+        if (note.isLive) {
+            liveIndicator.classList.remove('hidden');
+            liveIndicator.textContent = `🔴 ${note.listeners} à l'écoute`;
+        } else {
+            liveIndicator.classList.add('hidden');
+        }
+
+        drawWaveform(note.isLive);
+        if (!note.isLive) animateProgress(note.duration);
 
         modal.classList.remove('hidden');
-        playSound(note.type, Math.min(note.duration, 3));
+        playSound(note.type, Math.min(note.duration, 2));
     }
 
     function closeModal() {
         modal.classList.add('hidden');
     }
 
-    modalClose.addEventListener('click', closeModal);
-    modal.addEventListener('click', (e) => {
+    if (modalClose) modalClose.addEventListener('click', closeModal);
+    if (modal) modal.addEventListener('click', (e) => {
         if (e.target === modal) closeModal();
     });
 
-    btnLike.addEventListener('click', () => {
+    if (btnLike) btnLike.addEventListener('click', () => {
         const likesEl = document.getElementById('modal-likes');
         likesEl.textContent = parseInt(likesEl.textContent) + 1;
-        btnLike.textContent = '❤️ Liked!';
-        btnLike.style.background = 'var(--accent-color)';
-        btnLike.style.color = 'white';
-        showToast('Merci pour le like! 💖', 'success');
+        btnLike.textContent = '❤️ Merci!';
+        showToast('Vote enregistré! 💖', 'success');
     });
 
-    btnShare.addEventListener('click', () => {
-        if (navigator.share) {
-            navigator.share({
-                title: 'Vocal Walls',
-                text: `Écoute cette bulle sonore: ${currentNote?.label}`,
-                url: window.location.href
-            });
-        } else {
-            navigator.clipboard.writeText(window.location.href);
-            showToast('Lien copié! 📋', 'success');
-        }
+    if (btnShare) btnShare.addEventListener('click', () => {
+        navigator.clipboard.writeText(window.location.href);
+        showToast('Lien copié! 📋', 'success');
     });
 
     function formatDuration(seconds) {
@@ -154,150 +173,169 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${m}:${s.toString().padStart(2, '0')}`;
     }
 
-    function drawWaveform() {
+    function drawWaveform(isLive) {
         const canvas = document.getElementById('waveform');
+        if (!canvas) return;
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        const bars = 40;
+        const bars = 35;
         const barWidth = canvas.width / bars;
+        const color = isLive ? '#ff4757' : '#ff6b81';
 
         for (let i = 0; i < bars; i++) {
-            const height = Math.random() * 40 + 10;
+            const height = Math.random() * 35 + 8;
             const y = (canvas.height - height) / 2;
-
-            ctx.fillStyle = i < bars * 0.3 ? '#ff4757' : 'rgba(255, 71, 87, 0.3)';
+            ctx.fillStyle = i < bars * 0.3 ? color : `${color}50`;
             ctx.fillRect(i * barWidth + 1, y, barWidth - 2, height);
         }
     }
 
     function animateProgress(duration) {
         const progress = document.getElementById('waveform-progress');
+        if (!progress) return;
         progress.style.width = '0%';
         progress.style.transition = `width ${Math.min(duration, 3)}s linear`;
         setTimeout(() => progress.style.width = '100%', 50);
     }
 
     // =========================================
-    // 6. BUBBLE MARKERS
+    // 7. REALISTIC USE CASES (Content Database)
     // =========================================
-    const bubbleIcon = (type, label, health) => {
-        const isSecret = type === 'secret';
-        const color = isSecret ? '#2ed573' : '#ff4757';
-        const colorStyle = isSecret
-            ? `border-color: ${color}; background: rgba(46, 213, 115, 0.2);`
-            : '';
+    const archiveContent = [
+        { title: "Histoire du Marais", category: "🏛️ Patrimoine", icon: "🏛️", type: "guide", author: "Office du Tourisme", duration: 180, baseHealth: 95 },
+        { title: "Concert Jazz 1952", category: "🎵 Musique", icon: "🎷", type: "music", author: "Archives Paris", duration: 240, baseHealth: 88 },
+        { title: "Témoignage Résistance", category: "📜 Histoire", icon: "📜", type: "story", author: "Mémorial", duration: 300, baseHealth: 92 },
+        { title: "Guide Café Flore", category: "☕ Culture", icon: "☕", type: "guide", author: "Guide Local", duration: 120, baseHealth: 85 },
+        { title: "Poème Apollinaire", category: "📖 Littérature", icon: "📖", type: "story", author: "BNF Audio", duration: 90, baseHealth: 90 },
+        { title: "Ambiance Marché", category: "🎧 Ambiance", icon: "🎧", type: "music", author: "Sound Designer", duration: 60, baseHealth: 75 },
+        { title: "Anecdote Picasso", category: "🎨 Art", icon: "🎨", type: "story", author: "Musée Picasso", duration: 150, baseHealth: 88 }
+    ];
+
+    const liveContent = [
+        { title: "Jazz Session", category: "🎵 Live", icon: "🎷", type: "live", author: "Piano Bar", listeners: 12 },
+        { title: "Visite Guidée", category: "🎙️ Live", icon: "🎙️", type: "live", author: "Marie Guide", listeners: 8 },
+        { title: "Podcast Urbain", category: "🎧 Live", icon: "🎧", type: "live", author: "Radio Marais", listeners: 23 },
+        { title: "Cours de Dessin", category: "🎨 Live", icon: "🎨", type: "live", author: "Atelier 75", listeners: 5 }
+    ];
+
+    // =========================================
+    // 8. SMALLER BUBBLE MARKERS
+    // =========================================
+    const bubbleIcon = (note, isLive = false) => {
+        const size = isLive ? 50 : 45;
+        const borderColor = isLive ? '#ff4757' : (note.baseHealth > 85 ? '#2ed573' : '#ffa502');
+        const bgColor = isLive ? 'rgba(255, 71, 87, 0.25)' : 'rgba(46, 213, 115, 0.15)';
+        const pulseClass = isLive ? 'pulse-live' : 'pulse';
 
         const html = `
-            <div class="bubble-marker ${type}" style="${colorStyle}">
-                <div>
-                    <span>${label}</span>
-                    <div class="decay-bar" style="width: 50px;">
-                        <div class="decay-fill" style="width: ${health}%; ${isSecret ? `background: ${color};` : ''}"></div>
-                    </div>
-                </div>
+            <div class="bubble-mini ${pulseClass}" style="
+                width: ${size}px; 
+                height: ${size}px; 
+                border-color: ${borderColor}; 
+                background: ${bgColor};
+            ">
+                <span class="bubble-icon">${note.icon}</span>
+                ${isLive ? '<span class="live-dot"></span>' : ''}
             </div>
         `;
 
         return L.divIcon({
-            className: 'custom-bubble',
+            className: 'custom-bubble-mini',
             html: html,
-            iconSize: [100, 100],
-            iconAnchor: [50, 50]
+            iconSize: [size, size],
+            iconAnchor: [size / 2, size / 2]
         });
     };
 
     // =========================================
-    // 7. LAZY LOADING (VIEWPORT BASED)
+    // 9. SMART CLUSTERING (for dense areas)
     // =========================================
     const markersLayer = L.layerGroup().addTo(map);
-    const noteLabels = {
-        jazz: ['Jazz Club', 'Rumeur', 'Mélodie', 'Groove', 'Session'],
-        secret: ['Secret', 'Mystère', 'Légende', 'Écho', 'Whisper']
-    };
-    const authors = ['paul_75', 'marie_16', 'historien_paris', 'artiste_urbain', 'guide_local'];
+    let allMarkers = [];
 
-    function generateMockNotes(bounds) {
-        const notes = [];
-        const count = Math.floor(Math.random() * 3) + 2;
+    function clearMarkers() {
+        markersLayer.clearLayers();
+        allMarkers = [];
+    }
 
-        for (let i = 0; i < count; i++) {
+    function addMarkerWithLimit(note, coords, isLive = false) {
+        // Check proximity to existing markers (avoid overlap)
+        const minDistance = 0.0003; // ~30 meters
+        const tooClose = allMarkers.some(m => {
+            const d = Math.sqrt(
+                Math.pow(m.coords[0] - coords[0], 2) +
+                Math.pow(m.coords[1] - coords[1], 2)
+            );
+            return d < minDistance;
+        });
+
+        if (tooClose && allMarkers.length > 3) return; // Skip if too close and we have enough
+
+        const fullNote = {
+            ...note,
+            coords: coords,
+            isLive: isLive,
+            likes: Math.floor(Math.random() * 80) + 20,
+            plays: Math.floor(Math.random() * 300) + 50,
+            duration: note.duration || 120,
+            listeners: note.listeners || 0
+        };
+
+        const marker = L.marker(coords, {
+            icon: bubbleIcon(note, isLive)
+        });
+
+        marker.on('click', () => openModal(fullNote));
+        marker.addTo(markersLayer);
+        allMarkers.push({ coords, marker });
+    }
+
+    function refreshMarkers() {
+        clearMarkers();
+        const bounds = map.getBounds();
+        const content = currentMode === 'live' ? liveContent : archiveContent;
+        const maxMarkers = currentMode === 'live' ? 3 : 5;
+
+        // Generate positions within bounds
+        for (let i = 0; i < Math.min(content.length, maxMarkers); i++) {
             const lat = bounds.getSouth() + Math.random() * (bounds.getNorth() - bounds.getSouth());
             const lng = bounds.getWest() + Math.random() * (bounds.getEast() - bounds.getWest());
-            const type = Math.random() > 0.5 ? 'jazz' : 'secret';
-            const labels = noteLabels[type];
-
-            notes.push({
-                coords: [lat, lng],
-                type: type,
-                label: labels[Math.floor(Math.random() * labels.length)],
-                health: Math.floor(Math.random() * 60) + 40,
-                duration: Math.floor(Math.random() * 540) + 60, // 1-10 min
-                author: authors[Math.floor(Math.random() * authors.length)],
-                likes: Math.floor(Math.random() * 100),
-                plays: Math.floor(Math.random() * 500)
-            });
+            addMarkerWithLimit(content[i], [lat, lng], currentMode === 'live');
         }
-        return notes;
     }
 
-    function loadNotesInViewport() {
-        const bounds = map.getBounds();
-        const newNotes = generateMockNotes(bounds);
-
-        newNotes.forEach(note => {
-            const marker = L.marker(note.coords, {
-                icon: bubbleIcon(note.type, note.label, note.health)
-            });
-
-            marker.on('click', () => openModal(note));
-            marker.addTo(markersLayer);
-        });
-    }
-
-    // Initial notes
-    const initialNotes = [
-        { coords: [48.8566, 2.3522], type: 'jazz', label: 'Jazz Club', health: 85, duration: 150, author: 'paul_75', likes: 42, plays: 128 },
-        { coords: [48.8575, 2.3530], type: 'secret', label: 'Secret', health: 45, duration: 300, author: 'historien_paris', likes: 89, plays: 312 },
-        { coords: [48.8555, 2.3510], type: 'jazz', label: 'Groove', health: 70, duration: 180, author: 'artiste_urbain', likes: 23, plays: 67 }
-    ];
-
-    initialNotes.forEach(note => {
-        const marker = L.marker(note.coords, {
-            icon: bubbleIcon(note.type, note.label, note.health)
-        });
-        marker.on('click', () => openModal(note));
-        marker.addTo(markersLayer);
-    });
-
-    map.on('moveend', loadNotesInViewport);
+    // Initial load
+    refreshMarkers();
+    map.on('moveend', refreshMarkers);
 
     // =========================================
-    // 8. RECORDING SIMULATION
+    // 10. RECORDING WITH VOTE SYSTEM
     // =========================================
     const recordBtn = document.getElementById('record-btn');
     let isRecording = false;
     let recordingTimer = null;
 
-    recordBtn.addEventListener('click', () => {
-        if (!isRecording) {
-            startRecording();
-        } else {
-            stopRecording();
-        }
-    });
+    if (recordBtn) {
+        recordBtn.addEventListener('click', () => {
+            if (currentMode === 'live') {
+                startLiveStream();
+            } else {
+                isRecording ? stopRecording() : startRecording();
+            }
+        });
+    }
 
     function startRecording() {
         isRecording = true;
         recordBtn.classList.add('recording');
-        recordBtn.querySelector('.record-text').textContent = 'Arrêter';
+        recordBtn.querySelector('.record-text').textContent = 'Stop';
         recordBtn.querySelector('.record-icon').textContent = '⏹️';
         showToast('🎙️ Enregistrement... (max 10 min)', 'info');
 
-        // Auto-stop after 10 minutes
         recordingTimer = setTimeout(() => {
             stopRecording();
-            showToast('⏱️ Limite de 10 min atteinte', 'info');
+            showToast('⏱️ Limite atteinte', 'info');
         }, 10 * 60 * 1000);
     }
 
@@ -305,33 +343,56 @@ document.addEventListener('DOMContentLoaded', () => {
         isRecording = false;
         clearTimeout(recordingTimer);
         recordBtn.classList.remove('recording');
-        recordBtn.querySelector('.record-text').textContent = 'Enregistrer';
-        recordBtn.querySelector('.record-icon').textContent = '🎙️';
+        recordBtn.querySelector('.record-text').textContent = currentMode === 'live' ? 'Go Live' : 'Créer';
+        recordBtn.querySelector('.record-icon').textContent = currentMode === 'live' ? '📡' : '🎙️';
 
-        // Add a new bubble at current map center
+        // Show vote confirmation
+        showVoteModal();
+    }
+
+    function startLiveStream() {
+        showToast('📡 Vous êtes en direct!', 'live');
+        recordBtn.classList.add('recording');
+        recordBtn.querySelector('.record-text').textContent = 'Stop Live';
+
+        // Add live marker at current position
         const center = map.getCenter();
-        const newNote = {
-            coords: [center.lat, center.lng],
-            type: 'jazz',
-            label: 'Ma Note',
-            health: 100,
-            duration: Math.floor(Math.random() * 300) + 60,
-            author: 'vous',
-            likes: 0,
-            plays: 0
+        const liveNote = {
+            title: "Mon Stream",
+            category: "🎙️ Live",
+            icon: "🎙️",
+            type: "live",
+            author: "Vous",
+            listeners: 1
         };
+        addMarkerWithLimit(liveNote, [center.lat, center.lng], true);
+    }
 
-        const marker = L.marker(newNote.coords, {
-            icon: bubbleIcon(newNote.type, newNote.label, newNote.health)
-        });
-        marker.on('click', () => openModal(newNote));
-        marker.addTo(markersLayer);
+    function showVoteModal() {
+        // Simple confirmation - in real app this would be a proper modal
+        showToast('📤 Note soumise au vote communautaire!', 'success');
+        setTimeout(() => {
+            showToast('✅ 5 votes reçus - Note publiée!', 'success');
+        }, 2000);
+    }
 
-        showToast('✅ Note créée avec succès!', 'success');
+    // Update button text based on mode
+    function updateRecordButton() {
+        if (!recordBtn) return;
+        const icon = recordBtn.querySelector('.record-icon');
+        const text = recordBtn.querySelector('.record-text');
+
+        if (currentMode === 'live') {
+            icon.textContent = '📡';
+            text.textContent = 'Go Live';
+        } else {
+            icon.textContent = '🎙️';
+            text.textContent = 'Créer';
+        }
     }
 
     // =========================================
-    // 9. ANIMATED STATS
+    // 11. ANIMATED STATS
     // =========================================
     function animateStats() {
         const statNumbers = document.querySelectorAll('.stat-number');
@@ -362,9 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             el.textContent = current.toLocaleString() + (el.dataset.target === '85' ? '%' : '+');
 
-            if (progress < 1) {
-                requestAnimationFrame(update);
-            }
+            if (progress < 1) requestAnimationFrame(update);
         }
 
         requestAnimationFrame(update);
@@ -373,20 +432,16 @@ document.addEventListener('DOMContentLoaded', () => {
     animateStats();
 
     // =========================================
-    // 10. SMOOTH SCROLL
+    // 12. SMOOTH SCROLL
     // =========================================
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function (e) {
             e.preventDefault();
             const target = document.querySelector(this.getAttribute('href'));
-            if (target) {
-                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
+            if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     });
 
     // Initial toast
-    setTimeout(() => {
-        showToast('👋 Bienvenue sur Vocal Walls!', 'info');
-    }, 1000);
+    setTimeout(() => showToast('👋 Bienvenue! Cliquez sur une bulle', 'info'), 800);
 });

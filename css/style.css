@@ -184,6 +184,136 @@ p.subtitle {
     z-index: 1;
 }
 
+/* Mode Control */
+.mode-control {
+    position: absolute;
+    top: 100px;
+    left: 20px;
+    z-index: 100;
+}
+
+.mode-btn {
+    background: rgba(0, 0, 0, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 8px 16px;
+    border-radius: 20px;
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s;
+}
+
+.mode-btn:hover {
+    background: var(--accent-color);
+    border-color: transparent;
+}
+
+#mode-label.live {
+    color: var(--accent-color);
+}
+
+/* Custom Mini Bubbles */
+.custom-bubble-mini {
+    background: transparent;
+    border: none;
+}
+
+.bubble-mini {
+    border: 2px solid;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+    backdrop-filter: blur(3px);
+    position: relative;
+}
+
+.bubble-mini:hover {
+    transform: scale(1.2);
+    z-index: 1000;
+}
+
+.bubble-icon {
+    font-size: 1.2rem;
+}
+
+.live-dot {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 10px;
+    height: 10px;
+    background: #ff4757;
+    border: 2px solid white;
+    border-radius: 50%;
+    box-shadow: 0 0 5px #ff4757;
+}
+
+/* Pulse Animations */
+.pulse {
+    animation: mini-pulse 2s infinite;
+}
+
+.pulse-live {
+    animation: live-pulse 1s infinite;
+}
+
+@keyframes mini-pulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.2);
+    }
+
+    70% {
+        transform: scale(1.05);
+        box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+    }
+
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+    }
+}
+
+@keyframes live-pulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.6);
+    }
+
+    50% {
+        transform: scale(1.1);
+        box-shadow: 0 0 0 15px rgba(255, 71, 87, 0);
+    }
+
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 71, 87, 0);
+    }
+}
+
+/* Category Tags */
+.category-tag {
+    font-size: 0.7rem;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+    color: var(--secondary-color);
+}
+
+.live-tag {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: #ff4757;
+    background: rgba(255, 71, 87, 0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
 .app-header {
     padding: 50px 20px 20px;
     background: linear-gradient(to bottom, rgba(0, 0, 0, 0.95), transparent);
