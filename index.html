@@ -20,20 +20,55 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ff4757">
 
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+
     <!-- Styles -->
     <link rel="stylesheet" href="css/style.css">
 </head>
 
 <body>
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Audio Player Modal -->
+    <div id="audio-modal" class="modal hidden">
+        <div class="modal-content">
+            <button class="modal-close" id="modal-close">&times;</button>
+            <div class="modal-header">
+                <div class="modal-icon" id="modal-icon">🎵</div>
+                <div>
+                    <h3 id="modal-title">Jazz Underground</h3>
+                    <p id="modal-author">Par @artiste_anonyme</p>
+                </div>
+            </div>
+            <div class="waveform-container">
+                <canvas id="waveform" width="280" height="60"></canvas>
+                <div class="waveform-progress" id="waveform-progress"></div>
+            </div>
+            <div class="modal-controls">
+                <span id="modal-time">0:00 / 2:30</span>
+                <div class="modal-stats">
+                    <span>❤️ <span id="modal-likes">42</span></span>
+                    <span>👁️ <span id="modal-plays">128</span></span>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-like" id="btn-like">❤️ Like</button>
+                <button class="btn-share" id="btn-share">📤 Partager</button>
+            </div>
+        </div>
+    </div>
+
     <header>
         <div class="container">
             <nav>
                 <div class="logo">Vocal Walls</div>
-                <div>
-                    <a href="#"
-                        style="color: #fff; text-decoration: none; margin-left: 20px; font-weight: 500;">Manifesto</a>
-                    <a href="#" style="color: #fff; text-decoration: none; margin-left: 20px; font-weight: 500;">Tech
-                        Stack</a>
+                <div class="nav-links">
+                    <a href="#features">Vision</a>
+                    <a href="#stats">Impact</a>
                 </div>
             </nav>
         </div>
@@ -47,70 +82,131 @@
                 Réalité augmentée sonore pour une ville plus humaine.<br>
                 Découvrez des pèlerinages numériques invisibles à l'œil nu.
             </p>
-            <a href="#map" class="btn">Rejoindre l'Expérience</a>
+            <a href="#map" class="btn">🎧 Explorer la Carte</a>
 
             <div class="mockup-container">
                 <div class="mockup">
                     <div class="app-header">
-                        <div style="font-weight: 800; font-size: 1.2rem;">RUE DE RIVOLI</div>
-                        <div style="font-size: 0.8rem; opacity: 0.8;">H3: 8928308280fffff</div>
+                        <div class="location-badge">
+                            <span class="location-icon">📍</span>
+                            <span id="location-name">Chargement...</span>
+                        </div>
+                        <div class="h3-badge" id="h3-cell">H3: --</div>
                     </div>
 
                     <!-- Interactive Map Container -->
                     <div id="map"></div>
 
-                    <div
-                        style="position: absolute; bottom: 30px; width: 100%; text-align: center; pointer-events: none; z-index: 1000;">
-                        <div
-                            style="background: rgba(0,0,0,0.8); display: inline-block; padding: 10px 20px; border-radius: 20px; backdrop-filter: blur(5px);">
-                            🎧 Audio 3D Actif
-                        </div>
+                    <!-- Recording Button -->
+                    <button class="record-btn" id="record-btn">
+                        <span class="record-icon">🎙️</span>
+                        <span class="record-text">Enregistrer</span>
+                    </button>
+
+                    <div class="audio-badge">
+                        <span class="audio-wave">
+                            <span></span><span></span><span></span><span></span>
+                        </span>
+                        Audio 3D Actif
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <section class="features">
+    <section class="features" id="features">
         <div class="container">
-            <h2 style="text-align: center; margin-bottom: 3rem;">Technologies & Vision</h2>
+            <h2>Technologies & Vision</h2>
 
-            <div style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; margin-bottom: 2rem;">
+            <div class="cards-grid">
                 <!-- Tech Cards -->
-                <div class="card" style="flex: 1; min-width: 250px;">
+                <div class="card">
                     <code>H3Indexer.js</code>
-                    <h3>Grille H3 (Uber)</h3>
-                    <p>Géofencing ultra-précis (hexagones). Détection de zone optimisée pour économiser la batterie du
-                        téléphone.</p>
+                    <h3>🔷 Grille H3 (Uber)</h3>
+                    <p>Géofencing ultra-précis par hexagones. Économie de batterie maximale grâce à la détection de zone
+                        intelligente.</p>
                 </div>
-                <div class="card" style="flex: 1; min-width: 250px;">
+                <div class="card">
                     <code>SpatialAudioEngine.ts</code>
-                    <h3>Agora SDK 3D</h3>
-                    <p>Son spatialisé. Tournez la tête pour entendre la source sonore se déplacer. Immersion totale.</p>
+                    <h3>🔊 Audio Spatial 3D</h3>
+                    <p>SDK Agora intégré. Le son suit vos mouvements. Tournez la tête, le son se déplace. Immersion
+                        totale.</p>
                 </div>
-                <div class="card" style="flex: 1; min-width: 250px;">
+                <div class="card">
                     <code>DecayService.py</code>
-                    <h3>Entropie Numérique</h3>
-                    <p>Sans "Likes" pour les recharger, les bulles s'effacent. Seul le contenu pertinent survit au
-                        temps.</p>
+                    <h3>⏳ Entropie Numérique</h3>
+                    <p>Les bulles sans engagement disparaissent. Seul le contenu pertinent survit à l'épreuve du temps.
+                    </p>
                 </div>
             </div>
 
             <!-- Concept Cards -->
-            <div style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
-                <div class="card" style="border-color: rgba(255, 71, 87, 0.3);">
-                    <h3>🚀 Viralité Contextuelle</h3>
-                    <p>Le "Street Marketing" sonore. Il faut <b>être sur place</b> pour entendre. Créez des pèlerinages
-                        numériques.</p>
+            <div class="concept-cards">
+                <div class="concept-card viral">
+                    <div class="concept-icon">🚀</div>
+                    <h3>Viralité Contextuelle</h3>
+                    <p>Le "Street Marketing" sonore. Il faut <strong>être sur place</strong> pour entendre. Créez des
+                        pèlerinages numériques.</p>
                 </div>
-                <div class="card" style="border-color: rgba(255, 71, 87, 0.3);">
-                    <h3>💎 Modèle Premium</h3>
+                <div class="concept-card premium">
+                    <div class="concept-icon">💎</div>
+                    <h3>Modèle Premium</h3>
                     <p>Audio-guides immersifs pour offices de tourisme. Monétisation de parcours culturels exclusifs.
                     </p>
                 </div>
             </div>
         </div>
     </section>
+
+    <section class="stats" id="stats">
+        <div class="container">
+            <h2>Impact Potentiel</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" data-target="50000">0</div>
+                    <div class="stat-label">Utilisateurs Potentiels</div>
+                    <div class="stat-sub">en 6 mois post-lancement</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" data-target="1200">0</div>
+                    <div class="stat-label">Bulles Sonores</div>
+                    <div class="stat-sub">créées par jour (projection)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" data-target="85">0</div>
+                    <div class="stat-label">% Rétention</div>
+                    <div class="stat-sub">taux de réengagement</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta">
+        <div class="container">
+            <h2>Prêt à Investir ?</h2>
+            <p>Rejoignez l'aventure Vocal Walls et participez à la révolution de l'audio géolocalisé.</p>
+            <a href="mailto:contact@vocalwalls.io" class="btn btn-large">📩 Nous Contacter</a>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="logo">Vocal Walls</div>
+                    <p>L'Empreinte Sonore Locale</p>
+                </div>
+                <div class="footer-links">
+                    <a href="#">Manifesto</a>
+                    <a href="#">Tech Stack</a>
+                    <a href="#">Presse</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Vocal Walls. Tous droits réservés.</p>
+            </div>
+        </div>
+    </footer>
 
     <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
