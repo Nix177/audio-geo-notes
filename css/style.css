@@ -147,17 +147,35 @@ p.subtitle {
     box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.8);
 }
 
+/* New Map Styles */
+#map {
+    width: 100%;
+    height: 100%;
+    background: #242424;
+    /* Fallback */
+    z-index: 1;
+}
+
 .app-header {
     padding: 40px 20px 20px;
-    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent);
     position: absolute;
     top: 0;
     width: 100%;
     z-index: 10;
+    pointer-events: none;
+    /* Let clicks pass through to map */
 }
 
-.bubble {
-    position: absolute;
+/* Custom Leaflet Marker Styling */
+.custom-bubble {
+    background: transparent;
+    border: none;
+}
+
+.bubble-marker {
+    width: 100%;
+    height: 100%;
     background: rgba(255, 71, 87, 0.2);
     border: 2px solid var(--accent-color);
     border-radius: 50%;
@@ -168,6 +186,8 @@ p.subtitle {
     font-weight: bold;
     animation: pulse 2s infinite;
     cursor: pointer;
+    box-sizing: border-box;
+    /* Ensure border is included in size */
 }
 
 @keyframes pulse {
