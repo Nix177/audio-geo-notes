@@ -1,29 +1,57 @@
-# Déploiement sur GitHub Pages
+# Guide de Déploiement
 
-Pour rendre **Vocal Walls** accessible depuis internet, suivez ces étapes :
+Ce projet peut être hébergé sur n'importe quel serveur statique. Voici les méthodes pour **GitHub Pages** (gratuit, public) et **Hostinger** (privé ou public).
 
-## 1. Pousser le code (Si ce n'est pas déjà fait)
-1. Ouvrez **GitHub Desktop**.
-2. Cliquez sur **"Publish repository"** (si c'est le premier envoi) ou **"Push origin"** (si vous avez des modifications en attente).
+---
 
-## 2. Activer GitHub Pages
-1. Ouvrez votre navigateur et allez sur la page GitHub de votre projet.
-   - *Si vous ne l'avez pas, faites `Repository` > `View on GitHub` dans GitHub Desktop.*
-2. Cliquez sur l'onglet **Settings** (en haut à droite du dépôt).
-3. Dans le menu de gauche, cliquez sur **Pages**.
-4. Sous **Build and deployment** > **Branch** :
-   - Sélectionnez `main` (ou `master`).
-   - Assurez-vous que le dossier est bien `/(root)`.
-   - Cliquez sur **Save**.
+## Option A : GitHub Pages (Gratuit & Public)
+Accessible uniquement si le dépôt est **Public** (ou avec un compte GitHub Pro).
 
-## 3. Accéder au Site
-Une fois sauvegardé, GitHub va construire votre site (cela prend 1 à 2 minutes).
+1.  Allez dans **Settings** > **Pages** sur GitHub.
+2.  Source : `Deploy from a branch`.
+3.  Branch : `main` / `/(root)`.
+4.  Sauvegardez. Le site sera en ligne sous quelques minutes.
 
-Votre lien sera :
-> **https://Nix177.github.io/audio-geo-notes/**
-*(Remplacez `Nix177` par votre vrai nom d'utilisateur GitHub si ce n'est pas celui-ci).*
+---
 
-## 4. Vérification
-Rechargez la page "Pages" après 2 minutes. Vous verrez un bandeau en haut :
-> "Your site is live at..."
-Cliquez sur le lien pour voir **Vocal Walls** en ligne.
+## Option B : Hostinger (Recommandé pour Privé)
+Si vous avez un hébergement Hostinger (ou une invitation), c'est la meilleure option pour garder le code privé tout en le mettant en ligne.
+
+### Méthode 1 : Synchronisation Git (Automatique)
+C'est la méthode "Pro". Le site se mettra à jour automatiquement à chaque "Push".
+
+1.  **Sur Hostinger (hPanel)** :
+    - Allez dans la gestion de votre site web.
+    - Cherchez l'outil **Git** (section "Avancé").
+    - Ajoutez le dépôt : `Nix177/audio-geo-notes`.
+    - Branche : `main`.
+    - **IMPORTANT** : Si le dépôt est privé, Hostinger affichera une **clé SSH** (une longue suite de caractères commençant par `ssh-rsa...`). Copiez-la.
+
+2.  **Sur GitHub** :
+    - Allez dans le dépôt > **Settings** > **Deploy keys**.
+    - Cliquez sur **Add deploy key**.
+    - Titre : `Hostinger`.
+    - Key : Collez la clé copiée depuis Hostinger.
+    - Cochez "Allow write access" (optionnel, mais pratique).
+    - Sauvegardez.
+
+3.  **Retour sur Hostinger** :
+    - Cliquez sur **Connecter** ou **Créer**.
+    - Cliquez ensuite sur **Déployer**.
+    - C'est en ligne !
+
+### Méthode 2 : Gestionnaire de Fichiers (Manuel)
+Plus simple si vous ne voulez pas configurer de clés, mais vous devrez refaire ça à chaque mise à jour.
+
+1.  **Sur Hostinger** :
+    - Allez dans **Gestionnaire de fichiers** (Files).
+    - Entrez dans le dossier `public_html`.
+    - Supprimez le fichier `default.php` s'il existe.
+2.  **Depuis votre PC** :
+    - Sélectionnez tous les fichiers de votre dossier `i:\Sites\audio-geo-notes\` (`index.html`, `css`, `assets`, etc.).
+    - Glissez-déposez les fichiers directement dans la fenêtre du navigateur Hostinger.
+
+---
+
+## Vérification
+Après déploiement, votre site sera accessible via votre nom de domaine Hostinger (ex: `votre-domaine.com` ou `audio-geo-notes.votre-domaine.com`).
