@@ -1,4 +1,9 @@
-﻿# Deployment
+# Deployment
+
+Hostinger VPS step-by-step guide:
+- HOSTINGER_VPS_QUICKSTART.md
+- deploy/hostinger/setup_vps.sh
+- deploy/hostinger/nginx-api.conf.template
 
 ## Components to deploy
 - Backend API (Node.js)
@@ -48,3 +53,4 @@ At runtime, app can target API via:
 - verify note appears on web map and can be played
 - verify votes/report sync between clients
 - start/stop live stream and verify updates on other clients
+
