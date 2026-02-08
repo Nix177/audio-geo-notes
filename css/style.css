@@ -781,12 +781,42 @@ footer {
     gap: 15px;
 }
 
+.modal-moderation {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--secondary-color);
+}
+
+.moderation-status {
+    margin: 0 0 1rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--success-color);
+}
+
+.moderation-status.ok {
+    color: var(--success-color);
+}
+
+.moderation-status.warning {
+    color: #ffa502;
+}
+
+.moderation-status.critical {
+    color: var(--accent-color);
+}
+
 .modal-actions {
     display: flex;
     gap: 10px;
+    margin-bottom: 10px;
 }
 
 .btn-like,
+.btn-dislike,
 .btn-share {
     flex: 1;
     padding: 12px;
@@ -802,9 +832,29 @@ footer {
     color: var(--accent-color);
 }
 
+.btn-like.active {
+    background: var(--accent-color);
+    color: white;
+}
+
 .btn-like:hover {
     background: var(--accent-color);
     color: white;
+}
+
+.btn-dislike {
+    background: rgba(255, 165, 2, 0.2);
+    color: #ffa502;
+}
+
+.btn-dislike.active {
+    background: #ffa502;
+    color: #111;
+}
+
+.btn-dislike:hover {
+    background: #ffa502;
+    color: #111;
 }
 
 .btn-share {
@@ -814,6 +864,28 @@ footer {
 
 .btn-share:hover {
     background: rgba(255, 255, 255, 0.2);
+}
+
+.btn-report {
+    width: 100%;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 71, 87, 0.4);
+    background: rgba(255, 71, 87, 0.08);
+    color: #ffd4d9;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-report:hover:not(:disabled) {
+    background: rgba(255, 71, 87, 0.16);
+    border-color: rgba(255, 71, 87, 0.7);
+}
+
+.btn-report:disabled {
+    opacity: 0.6;
+    cursor: default;
 }
 
 /* Toast Notifications */
@@ -883,5 +955,20 @@ footer {
 
     .footer-links a {
         margin: 0 0.75rem;
+    }
+
+    .modal-moderation {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .modal-actions {
+        flex-wrap: wrap;
+    }
+
+    .btn-like,
+    .btn-dislike,
+    .btn-share {
+        min-width: calc(50% - 5px);
     }
 }

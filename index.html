@@ -59,10 +59,18 @@
                     <span>👁️ <span id="modal-plays">128</span></span>
                 </div>
             </div>
-            <div class="modal-actions">
-                <button class="btn-like" id="btn-like">❤️ Like</button>
-                <button class="btn-share" id="btn-share">📤 Partager</button>
+            <div class="modal-moderation">
+                <span>Score visible: <strong id="modal-score">0</strong></span>
+                <span>Downvotes visibles: <strong id="modal-downvotes">0</strong></span>
+                <span>Reports: <strong id="modal-reports">0</strong></span>
             </div>
+            <p class="moderation-status" id="modal-status">Contenu normal</p>
+            <div class="modal-actions">
+                <button class="btn-like" id="btn-like">Like</button>
+                <button class="btn-dislike" id="btn-dislike">Downvote</button>
+                <button class="btn-share" id="btn-share">Partager</button>
+            </div>
+            <button class="btn-report" id="btn-report">Reporter ce contenu</button>
         </div>
     </div>
 
@@ -95,7 +103,7 @@
                             <span class="location-icon">📍</span>
                             <span id="location-name">Chargement...</span>
                         </div>
-                        <div class="h3-badge" id="h3-cell">H3: --</div>
+                        <div class="h3-badge" id="h3-cell">Zone: --</div>
                     </div>
 
                     <!-- Mode Toggle -->
@@ -230,3 +238,4 @@
 </body>
 
 </html>
+

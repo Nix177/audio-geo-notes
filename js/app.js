@@ -117,8 +117,59 @@ document.addEventListener('DOMContentLoaded', () => {
     const modal = document.getElementById('audio-modal');
     const modalClose = document.getElementById('modal-close');
     const btnLike = document.getElementById('btn-like');
+    const btnDislike = document.getElementById('btn-dislike');
     const btnShare = document.getElementById('btn-share');
+    const btnReport = document.getElementById('btn-report');
+    const modalScore = document.getElementById('modal-score');
+    const modalDownvotes = document.getElementById('modal-downvotes');
+    const modalReports = document.getElementById('modal-reports');
+    const modalStatus = document.getElementById('modal-status');
     let currentNote = null;
+
+    function computeVisibleScore(note) {
+        return note.likes - note.downvotes - note.reports * 2;
+    }
+
+    function getModerationStatus(note) {
+        const score = computeVisibleScore(note);
+        if (note.reports >= 4 || score <= -10) {
+            return { label: 'Contenu sous revue communautaire', className: 'critical' };
+        }
+        if (note.reports >= 2 || score < 20) {
+            return { label: 'Visibilité réduite (signalements actifs)', className: 'warning' };
+        }
+        return { label: 'Contenu normal', className: 'ok' };
+    }
+
+    function updateVoteButtons() {
+        if (!currentNote) return;
+        if (btnLike) {
+            btnLike.textContent = currentNote.viewerVote === 'like' ? 'Like ✓' : 'Like';
+            btnLike.classList.toggle('active', currentNote.viewerVote === 'like');
+        }
+        if (btnDislike) {
+            btnDislike.textContent = currentNote.viewerVote === 'dislike' ? 'Downvote ✓' : 'Downvote';
+            btnDislike.classList.toggle('active', currentNote.viewerVote === 'dislike');
+        }
+        if (btnReport) {
+            btnReport.disabled = Boolean(currentNote.viewerReported);
+            btnReport.textContent = currentNote.viewerReported ? 'Signalé' : 'Reporter ce contenu';
+        }
+    }
+
+    function updateModerationUI() {
+        if (!currentNote) return;
+        modalScore.textContent = computeVisibleScore(currentNote);
+        modalDownvotes.textContent = currentNote.downvotes;
+        modalReports.textContent = currentNote.reports;
+
+        const status = getModerationStatus(currentNote);
+        modalStatus.textContent = status.label;
+        modalStatus.classList.remove('ok', 'warning', 'critical');
+        modalStatus.classList.add(status.className);
+
+        updateVoteButtons();
+    }
 
     function openModal(note) {
         currentNote = note;
@@ -139,6 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
             liveIndicator.classList.add('hidden');
         }
 
+        updateModerationUI();
         drawWaveform(note.isLive);
         if (!note.isLive) animateProgress(note.duration);
 
@@ -156,10 +208,39 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (btnLike) btnLike.addEventListener('click', () => {
-        const likesEl = document.getElementById('modal-likes');
-        likesEl.textContent = parseInt(likesEl.textContent) + 1;
-        btnLike.textContent = '❤️ Merci!';
-        showToast('Vote enregistré! 💖', 'success');
+        if (!currentNote || currentNote.viewerVote === 'like') return;
+
+        if (currentNote.viewerVote === 'dislike') {
+            currentNote.downvotes = Math.max(0, currentNote.downvotes - 1);
+        }
+
+        currentNote.viewerVote = 'like';
+        currentNote.likes += 1;
+        document.getElementById('modal-likes').textContent = currentNote.likes;
+        updateModerationUI();
+        showToast('Vote positif enregistré', 'success');
+    });
+
+    if (btnDislike) btnDislike.addEventListener('click', () => {
+        if (!currentNote || currentNote.viewerVote === 'dislike') return;
+
+        if (currentNote.viewerVote === 'like') {
+            currentNote.likes = Math.max(0, currentNote.likes - 1);
+        }
+
+        currentNote.viewerVote = 'dislike';
+        currentNote.downvotes += 1;
+        document.getElementById('modal-likes').textContent = currentNote.likes;
+        updateModerationUI();
+        showToast('Downvote enregistré', 'info');
+    });
+
+    if (btnReport) btnReport.addEventListener('click', () => {
+        if (!currentNote || currentNote.viewerReported) return;
+        currentNote.viewerReported = true;
+        currentNote.reports += 1;
+        updateModerationUI();
+        showToast('Contenu signalé à la modération', 'info');
     });
 
     if (btnShare) btnShare.addEventListener('click', () => {
@@ -277,9 +358,13 @@ document.addEventListener('DOMContentLoaded', () => {
             coords: coords,
             isLive: isLive,
             likes: Math.floor(Math.random() * 80) + 20,
+            downvotes: Math.floor(Math.random() * 15),
+            reports: Math.floor(Math.random() * 3),
             plays: Math.floor(Math.random() * 300) + 50,
             duration: note.duration || 120,
-            listeners: note.listeners || 0
+            listeners: note.listeners || 0,
+            viewerVote: null,
+            viewerReported: false
         };
 
         const marker = L.marker(coords, {
