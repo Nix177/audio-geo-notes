@@ -6,10 +6,18 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "android": {
-      "package": "io.vocalwalls.mobile"
+      "package": "io.vocalwalls.mobile",
+      "permissions": [
+        "RECORD_AUDIO",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "extra": {
       "apiBaseUrlDefault": "http://10.0.2.2:4000"
-    }
+    },
+    "plugins": [
+      "expo-asset"
+    ]
   }
 }
