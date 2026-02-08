@@ -1,8 +1,15 @@
-# Vocal Walls Mobile (React Native / Expo)
+﻿# Vocal Walls Mobile (Android / Expo)
 
-## Prérequis
+## Fonctionnalites
+- Enregistrement audio local
+- Publication d une capsule geolocalisee (titre + description + audio)
+- Lecture des notes audio
+- Like / Downvote / Report
+- Demarrage / arret d un live stream audio (chunks)
+
+## Prerequis
 - Node.js 18+
-- Android Studio (émulateur Android) ou téléphone Android avec Expo Go
+- Android Studio (emulateur) ou smartphone Android avec Expo Go
 
 ## Installation
 ```bash
@@ -16,15 +23,10 @@ npm run android
 ```
 
 ## URL API
-Par défaut, l'app utilise `http://10.0.2.2:4000` (émulateur Android).
+- Defaut emulateur: `http://10.0.2.2:4000`
+- L app permet aussi de modifier l URL API directement dans l ecran.
 
-Pour un téléphone réel:
-```bash
-set EXPO_PUBLIC_API_BASE_URL=http://<IP_LOCALE_PC>:4000
-npm run android
-```
-
-ou en PowerShell:
+Pour telephone physique:
 ```powershell
 $env:EXPO_PUBLIC_API_BASE_URL="http://<IP_LOCALE_PC>:4000"
 npm run android

@@ -14,6 +14,10 @@
     box-sizing: border-box;
 }
 
+.hidden {
+    display: none !important;
+}
+
 body {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     background-color: var(--bg-color);
@@ -745,6 +749,24 @@ footer {
     font-size: 0.85rem;
 }
 
+.modal-description {
+    margin: 0 0 0.75rem;
+    color: #c8cdda;
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+
+.modal-audio {
+    width: 100%;
+    margin-bottom: 0.9rem;
+}
+
+.modal-audio-empty {
+    margin: 0 0 0.9rem;
+    color: var(--secondary-color);
+    font-size: 0.8rem;
+}
+
 .waveform-container {
     position: relative;
     margin-bottom: 1rem;
@@ -888,6 +910,109 @@ footer {
     cursor: default;
 }
 
+.composer-content {
+    width: min(420px, 92vw);
+}
+
+.composer-content h3 {
+    margin: 0;
+}
+
+.composer-subtitle {
+    margin: 6px 0 16px;
+    color: var(--secondary-color);
+    font-size: 0.85rem;
+}
+
+.composer-label {
+    display: block;
+    font-size: 0.78rem;
+    color: #b8bfcd;
+    margin-bottom: 6px;
+}
+
+.composer-input,
+.composer-textarea {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.28);
+    color: #fff;
+    padding: 10px 11px;
+    margin-bottom: 10px;
+    font: inherit;
+}
+
+.composer-textarea {
+    min-height: 84px;
+    resize: vertical;
+}
+
+.composer-location {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 0.78rem;
+    color: var(--secondary-color);
+}
+
+.composer-small-btn {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: transparent;
+    color: #fff;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 0.72rem;
+    cursor: pointer;
+}
+
+.composer-record-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 0.8rem;
+    color: var(--secondary-color);
+}
+
+.composer-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.composer-btn {
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    border-radius: 10px;
+    padding: 10px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.composer-btn.primary {
+    background: rgba(46, 213, 115, 0.14);
+    border-color: rgba(46, 213, 115, 0.5);
+}
+
+.composer-btn.live {
+    background: rgba(255, 71, 87, 0.16);
+    border-color: rgba(255, 71, 87, 0.6);
+}
+
+.composer-btn.stop {
+    background: rgba(255, 165, 2, 0.16);
+    border-color: rgba(255, 165, 2, 0.5);
+}
+
+.composer-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
 /* Toast Notifications */
 #toast-container {
     position: fixed;
@@ -970,5 +1095,19 @@ footer {
     .btn-dislike,
     .btn-share {
         min-width: calc(50% - 5px);
+    }
+
+    .composer-location {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .composer-record-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .composer-actions {
+        grid-template-columns: 1fr;
     }
 }

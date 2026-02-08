@@ -1,46 +1,35 @@
-# Déploiement
+﻿# Deployment
 
-## Environnements
-Le projet contient:
-- un frontend web statique
-- un backend API Node.js
-- une app mobile Expo (Android)
+## Components to deploy
+- Backend API (Node.js)
+- Static web frontend
+- Mobile app build (Expo / EAS)
 
-## 1) Déployer le backend API
-### Option simple (VM/VPS)
+## 1) Backend API
 ```bash
 cd backend
 npm ci
 PORT=4000 npm start
 ```
 
-### Avec PM2
-```bash
-npm install -g pm2
-cd backend
-npm ci
-pm2 start src/index.js --name vocal-walls-api --env production
-pm2 save
-```
+Recommended env vars:
+- `PORT`
+- `DB_PATH` (persistent volume path)
+- `UPLOADS_DIR` (persistent volume path for audio files)
 
-### Variables
-- `PORT`: port HTTP API
-- `DB_PATH`: chemin du fichier JSON de données (ex: volume persistant)
+Important: persist both JSON database and uploads folder.
 
-## 2) Déployer le site web
-Le site web est statique et peut être servi par Nginx, GitHub Pages, Hostinger, etc.
+## 2) Web frontend
+Serve root folder with nginx / apache / static hosting.
 
-Important: configure `window.VOCAL_WALLS_API_BASE` pour pointer vers l'URL publique de l'API si besoin.
-
-Exemple:
+If API is not on localhost, set:
 ```html
 <script>
-  window.VOCAL_WALLS_API_BASE = "https://api.vocalwalls.io";
+  window.VOCAL_WALLS_API_BASE = "https://api.your-domain.com";
 </script>
 ```
 
-## 3) Android (Expo)
-### Build cloud EAS
+## 3) Android app
 ```bash
 cd mobile
 npm ci
@@ -49,13 +38,13 @@ npx eas build:configure
 npx eas build --platform android
 ```
 
-### Runtime API URL
-Définir `EXPO_PUBLIC_API_BASE_URL` vers l'API publique:
-```bash
-EXPO_PUBLIC_API_BASE_URL=https://api.vocalwalls.io npx expo start --android
-```
+At runtime, app can target API via:
+- env var `EXPO_PUBLIC_API_BASE_URL`
+- or direct API URL input in app UI
 
-## 4) Vérifications post-déploiement
-- `GET /api/health` renvoie `status: up`.
-- Le site web charge les notes et les actions like/report mettent à jour les compteurs.
-- L'app mobile lit et publie des notes sur la même API.
+## Post-deploy checks
+- `GET /api/health` returns `status: up`
+- create a note with audio from mobile
+- verify note appears on web map and can be played
+- verify votes/report sync between clients
+- start/stop live stream and verify updates on other clients

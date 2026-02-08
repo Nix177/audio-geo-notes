@@ -1,51 +1,50 @@
-# Technical Architecture - Vocal Walls
+﻿# Technical Architecture - Vocal Walls
 
 ## Overview
-Le projet est organisé en 3 couches:
-- `web` (racine): frontend Leaflet/audio (`index.html`, `css/`, `js/`)
-- `backend`: API REST Node.js/Express + persistance JSON
-- `mobile`: app React Native (Expo) pour Android
+Trois couches:
+- Web frontend (`index.html`, `css/`, `js/`)
+- Backend API (`backend/`)
+- Mobile Android Expo (`mobile/`)
 
-## Backend (`backend/`)
-### Stack
-- Node.js 18+
-- Express 4
-- CORS
-- Persistance locale JSON (`backend/data/notes.json`)
+## Backend
+Stack:
+- Node.js + Express
+- Multer pour uploads audio
+- Persistance JSON (`backend/data/notes.json`)
+- Fichiers audio dans `backend/uploads`
 
-### API
-- `GET /api/health`
-- `GET /api/notes?mode=archive|live`
-- `POST /api/notes`
-- `POST /api/notes/:id/votes`
-- `POST /api/notes/:id/report`
-- `POST /api/notes/:id/play`
+Notes:
+- Champs metier: titre, description, auteur, geoloc, stats moderation, audio URL
+- Types: archive et live
+- Stream live: demarrage, envoi de chunks audio, heartbeat, arret
 
-### Data model (note)
-- `id`, `title`, `author`, `category`, `icon`, `type`
-- `isLive`, `lat`, `lng`, `duration`
-- `likes`, `downvotes`, `reports`, `plays`, `listeners`
-- `createdAt`, `updatedAt`
+## API
+- Notes:
+  - `GET /api/notes?mode=archive|live`
+  - `POST /api/notes` (multipart)
+  - `POST /api/notes/:id/votes`
+  - `POST /api/notes/:id/report`
+  - `POST /api/notes/:id/play`
+- Streams:
+  - `GET /api/streams`
+  - `POST /api/streams/start`
+  - `POST /api/streams/:id/audio`
+  - `POST /api/streams/:id/heartbeat`
+  - `POST /api/streams/:id/stop`
 
-## Web frontend (`js/app.js`)
-### Runtime behavior
-- Charge des seeds locales, puis tente la synchro API.
-- Fallback local automatique si backend indisponible.
-- Actions modération synchronisées avec l'API:
-  - like/downvote/report
-  - incrément `plays` à l'ouverture du modal
-- Création de notes via bouton record/live (API ou fallback local).
+## Web frontend
+- Carte Leaflet avec marqueurs geolocalises
+- Modal detail avec lecture audio, description, moderation
+- Composer modal pour publier et streamer
+- Polling periodique pour synchro multi-clients
 
-## Mobile frontend (`mobile/App.js`)
-### Runtime behavior
-- Mode `archive/live` avec fetch API.
-- Liste des notes avec score visible.
-- Actions:
-  - création de note
-  - like/downvote/report
-- Rafraîchissement manuel + état de connexion backend.
+## Mobile frontend
+- Enregistrement audio (expo-av)
+- Geolocalisation (expo-location)
+- Publication capsule, playback, votes
+- Live stream en boucle de chunks audio
 
-## Testing
-- Backend: tests d'intégration `node:test` dans `backend/tests/api.test.js`.
-- Web: vérification syntaxique `node --check js/app.js`.
-- Mobile: validation de config et dépendances via `expo-doctor`.
+## Quality
+- Tests integration backend (`backend/tests/api.test.js`)
+- Validation syntaxique web (`node --check js/app.js`)
+- Validation mobile (`expo-doctor`)

@@ -52,6 +52,9 @@
                 <canvas id="waveform" width="280" height="60"></canvas>
                 <div class="waveform-progress" id="waveform-progress"></div>
             </div>
+            <p class="modal-description" id="modal-description">Description en cours de chargement...</p>
+            <audio id="modal-audio" class="modal-audio" controls preload="none"></audio>
+            <p id="modal-audio-empty" class="modal-audio-empty hidden">Aucun son disponible pour cette note.</p>
             <div class="modal-controls">
                 <span id="modal-time">0:00 / 2:30</span>
                 <div class="modal-stats">
@@ -71,6 +74,42 @@
                 <button class="btn-share" id="btn-share">Partager</button>
             </div>
             <button class="btn-report" id="btn-report">Reporter ce contenu</button>
+        </div>
+    </div>
+
+    <!-- Composer Modal -->
+    <div id="composer-modal" class="modal hidden">
+        <div class="modal-content composer-content">
+            <button class="modal-close" id="composer-close">&times;</button>
+            <h3>Publier un son géolocalisé</h3>
+            <p class="composer-subtitle">Créez une capsule audio communautaire ou démarrez un live.</p>
+
+            <label class="composer-label" for="composer-title">Titre</label>
+            <input id="composer-title" class="composer-input" type="text" maxlength="80"
+                placeholder="Ex: Histoire de la place">
+
+            <label class="composer-label" for="composer-description">Description</label>
+            <textarea id="composer-description" class="composer-textarea" maxlength="220"
+                placeholder="Décrivez ce que les autres vont entendre..."></textarea>
+
+            <label class="composer-label" for="composer-author">Auteur</label>
+            <input id="composer-author" class="composer-input" type="text" maxlength="50" value="Web User">
+
+            <div class="composer-location">
+                <span id="composer-location-text">Position: 48.8566, 2.3522</span>
+                <button id="composer-use-map" class="composer-small-btn">Utiliser centre carte</button>
+            </div>
+
+            <div class="composer-record-row">
+                <button id="composer-record-toggle" class="composer-btn">Démarrer enregistrement</button>
+                <span id="composer-record-status">Aucun son enregistré</span>
+            </div>
+
+            <div class="composer-actions">
+                <button id="composer-publish" class="composer-btn primary">Publier capsule</button>
+                <button id="composer-start-live" class="composer-btn live">Démarrer live</button>
+                <button id="composer-stop-live" class="composer-btn stop" disabled>Stop live</button>
+            </div>
         </div>
     </div>
 
@@ -119,7 +158,7 @@
                     <!-- Recording Button -->
                     <button class="record-btn" id="record-btn">
                         <span class="record-icon">🎙️</span>
-                        <span class="record-text">Enregistrer</span>
+                        <span class="record-text">Publier</span>
                     </button>
 
                     <div class="audio-badge">

@@ -1,4 +1,4 @@
-const test = require("node:test");
+﻿const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
@@ -12,11 +12,13 @@ const { seedNotes } = require("../src/seed-data");
 async function startTestServer() {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "audio-geo-notes-"));
   const dbPath = path.join(tempDir, "notes.json");
+  const uploadsDir = path.join(tempDir, "uploads");
+  await fs.mkdir(uploadsDir, { recursive: true });
 
   const store = new NotesStore(dbPath, seedNotes);
   await store.init();
 
-  const app = createApp({ store });
+  const app = createApp({ store, uploadsDir });
   const server = app.listen(0);
   await once(server, "listening");
 
@@ -43,6 +45,15 @@ async function jsonResponse(response) {
   };
 }
 
+function buildAudioForm(fields = {}) {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(fields)) {
+    form.set(key, String(value));
+  }
+  form.set("audio", new Blob(["fake audio bytes"], { type: "audio/webm" }), "clip.webm");
+  return form;
+}
+
 test("GET /api/health returns service status", async (t) => {
   const ctx = await startTestServer();
   t.after(async () => ctx.cleanup());
@@ -53,45 +64,40 @@ test("GET /api/health returns service status", async (t) => {
   assert.equal(body.data.status, "up");
 });
 
-test("GET /api/notes returns filtered live notes", async (t) => {
+test("POST /api/notes accepts multipart audio and returns audioUrl", async (t) => {
   const ctx = await startTestServer();
   t.after(async () => ctx.cleanup());
 
-  const { status, body } = await jsonResponse(await fetch(`${ctx.baseUrl}/api/notes?mode=live`));
-  assert.equal(status, 200);
-  assert.equal(body.ok, true);
-  assert.ok(Array.isArray(body.data));
-  assert.ok(body.data.length > 0);
-  assert.ok(body.data.every((note) => note.isLive));
-});
-
-test("POST /api/notes creates a new note then allows vote/report/play", async (t) => {
-  const ctx = await startTestServer();
-  t.after(async () => ctx.cleanup());
-
-  const createPayload = {
-    title: "Test Note",
+  const form = buildAudioForm({
+    title: "Test Audio Note",
+    description: "Description note test",
     author: "QA Bot",
-    category: "🧪 Test",
-    type: "story",
-    icon: "🧪",
-    duration: 95,
-    lat: 48.857,
-    lng: 2.353
-  };
+    lat: "48.857",
+    lng: "2.353"
+  });
 
   const createdResponse = await fetch(`${ctx.baseUrl}/api/notes`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(createPayload)
+    body: form
   });
   const created = await jsonResponse(createdResponse);
+
   assert.equal(created.status, 201);
   assert.equal(created.body.ok, true);
-  assert.equal(created.body.data.title, createPayload.title);
+  assert.equal(created.body.data.title, "Test Audio Note");
+  assert.equal(created.body.data.description, "Description note test");
+  assert.ok(typeof created.body.data.audioUrl === "string");
+  assert.ok(created.body.data.audioUrl.includes("/uploads/"));
+  const uploadedAudioResponse = await fetch(created.body.data.audioUrl);
+  assert.equal(uploadedAudioResponse.status, 200);
+  const uploadedContentType = (uploadedAudioResponse.headers.get("content-type") || "").toLowerCase();
+  assert.ok(
+    uploadedContentType.startsWith("audio/") ||
+      uploadedContentType.startsWith("video/webm") ||
+      uploadedContentType.startsWith("application/octet-stream")
+  );
 
   const noteId = created.body.data.id;
-  assert.ok(noteId);
 
   const likeResponse = await fetch(`${ctx.baseUrl}/api/notes/${noteId}/votes`, {
     method: "POST",
@@ -115,6 +121,73 @@ test("POST /api/notes creates a new note then allows vote/report/play", async (t
   const played = await jsonResponse(playResponse);
   assert.equal(played.status, 200);
   assert.equal(played.body.data.plays, 1);
+});
+
+test("stream lifecycle: start, upload chunks, heartbeat, stop", async (t) => {
+  const ctx = await startTestServer();
+  t.after(async () => ctx.cleanup());
+
+  const startForm = new FormData();
+  startForm.set("title", "Live Test Session");
+  startForm.set("description", "Session de test live");
+  startForm.set("author", "Live QA");
+  startForm.set("lat", "48.85");
+  startForm.set("lng", "2.34");
+
+  const startedResponse = await fetch(`${ctx.baseUrl}/api/streams/start`, {
+    method: "POST",
+    body: startForm
+  });
+  const started = await jsonResponse(startedResponse);
+
+  assert.equal(started.status, 201);
+  assert.equal(started.body.ok, true);
+  assert.equal(started.body.data.isLive, true);
+  assert.equal(started.body.data.isStream, true);
+  assert.equal(started.body.data.streamActive, true);
+
+  const streamId = started.body.data.id;
+
+  const chunkForm = buildAudioForm();
+  const chunkResponse = await fetch(`${ctx.baseUrl}/api/streams/${streamId}/audio`, {
+    method: "POST",
+    body: chunkForm
+  });
+  const chunkUpdated = await jsonResponse(chunkResponse);
+  assert.equal(chunkUpdated.status, 200);
+  assert.ok(chunkUpdated.body.data.audioUrl);
+
+  const heartbeatResponse = await fetch(`${ctx.baseUrl}/api/streams/${streamId}/heartbeat`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ listeners: 17 })
+  });
+  const heartbeat = await jsonResponse(heartbeatResponse);
+  assert.equal(heartbeat.status, 200);
+  assert.equal(heartbeat.body.data.listeners, 17);
+
+  const stopResponse = await fetch(`${ctx.baseUrl}/api/streams/${streamId}/stop`, {
+    method: "POST"
+  });
+  const stopped = await jsonResponse(stopResponse);
+  assert.equal(stopped.status, 200);
+  assert.equal(stopped.body.data.streamActive, false);
+  assert.equal(stopped.body.data.isLive, false);
+
+  const lateChunkResponse = await fetch(`${ctx.baseUrl}/api/streams/${streamId}/audio`, {
+    method: "POST",
+    body: buildAudioForm()
+  });
+  const lateChunk = await jsonResponse(lateChunkResponse);
+  assert.equal(lateChunk.status, 409);
+
+  const liveList = await jsonResponse(await fetch(`${ctx.baseUrl}/api/notes?mode=live`));
+  assert.equal(liveList.status, 200);
+  assert.ok(liveList.body.data.every((note) => note.id !== streamId));
+
+  const archiveList = await jsonResponse(await fetch(`${ctx.baseUrl}/api/notes?mode=archive`));
+  assert.equal(archiveList.status, 200);
+  assert.ok(archiveList.body.data.some((note) => note.id === streamId));
 });
 
 test("POST /api/notes/:id/votes rejects invalid vote type", async (t) => {
