@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "Vocal Walls Mobile",
+    "slug": "audio-geo-notes-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "io.vocalwalls.mobile"
+    },
+    "extra": {
+      "apiBaseUrlDefault": "http://10.0.2.2:4000"
+    }
+  }
+}
