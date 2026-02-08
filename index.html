@@ -95,10 +95,16 @@
             <label class="composer-label" for="composer-author">Auteur</label>
             <input id="composer-author" class="composer-input" type="text" maxlength="50" value="Web User">
 
+            <div class="composer-geo-mode">
+                <button id="composer-geo-gps" class="composer-small-btn" type="button">Mode GPS</button>
+                <button id="composer-geo-pin" class="composer-small-btn active" type="button">Mode pin carte</button>
+            </div>
+
             <div class="composer-location">
                 <span id="composer-location-text">Position: 48.8566, 2.3522</span>
-                <button id="composer-use-map" class="composer-small-btn">Utiliser centre carte</button>
+                <button id="composer-use-map" class="composer-small-btn" type="button">Poser pin au centre</button>
             </div>
+            <p class="composer-location-hint" id="composer-location-hint">Cliquez sur la carte pour placer votre pin.</p>
 
             <div class="composer-record-row">
                 <button id="composer-record-toggle" class="composer-btn">Démarrer enregistrement</button>

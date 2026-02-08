@@ -958,6 +958,12 @@ footer {
     color: var(--secondary-color);
 }
 
+.composer-geo-mode {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
 .composer-small-btn {
     border: 1px solid rgba(255, 255, 255, 0.2);
     background: transparent;
@@ -966,6 +972,17 @@ footer {
     padding: 6px 10px;
     font-size: 0.72rem;
     cursor: pointer;
+}
+
+.composer-small-btn.active {
+    border-color: rgba(255, 71, 87, 0.7);
+    background: rgba(255, 71, 87, 0.2);
+}
+
+.composer-location-hint {
+    margin: -2px 0 10px;
+    color: #9da4b4;
+    font-size: 0.74rem;
 }
 
 .composer-record-row {
