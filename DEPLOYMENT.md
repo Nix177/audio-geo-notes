@@ -1,57 +1,61 @@
-# Guide de Déploiement
+# Déploiement
 
-Ce projet peut être hébergé sur n'importe quel serveur statique. Voici les méthodes pour **GitHub Pages** (gratuit, public) et **Hostinger** (privé ou public).
+## Environnements
+Le projet contient:
+- un frontend web statique
+- un backend API Node.js
+- une app mobile Expo (Android)
 
----
+## 1) Déployer le backend API
+### Option simple (VM/VPS)
+```bash
+cd backend
+npm ci
+PORT=4000 npm start
+```
 
-## Option A : GitHub Pages (Gratuit & Public)
-Accessible uniquement si le dépôt est **Public** (ou avec un compte GitHub Pro).
+### Avec PM2
+```bash
+npm install -g pm2
+cd backend
+npm ci
+pm2 start src/index.js --name vocal-walls-api --env production
+pm2 save
+```
 
-1.  Allez dans **Settings** > **Pages** sur GitHub.
-2.  Source : `Deploy from a branch`.
-3.  Branch : `main` / `/(root)`.
-4.  Sauvegardez. Le site sera en ligne sous quelques minutes.
+### Variables
+- `PORT`: port HTTP API
+- `DB_PATH`: chemin du fichier JSON de données (ex: volume persistant)
 
----
+## 2) Déployer le site web
+Le site web est statique et peut être servi par Nginx, GitHub Pages, Hostinger, etc.
 
-## Option B : Hostinger (Recommandé pour Privé)
-Si vous avez un hébergement Hostinger (ou une invitation), c'est la meilleure option pour garder le code privé tout en le mettant en ligne.
+Important: configure `window.VOCAL_WALLS_API_BASE` pour pointer vers l'URL publique de l'API si besoin.
 
-### Méthode 1 : Synchronisation Git (Automatique)
-C'est la méthode "Pro". Le site se mettra à jour automatiquement à chaque "Push".
+Exemple:
+```html
+<script>
+  window.VOCAL_WALLS_API_BASE = "https://api.vocalwalls.io";
+</script>
+```
 
-1.  **Sur Hostinger (hPanel)** :
-    - Allez dans la gestion de votre site web.
-    - Cherchez l'outil **Git** (section "Avancé").
-    - Ajoutez le dépôt : `Nix177/audio-geo-notes`.
-    - Branche : `main`.
-    - **IMPORTANT** : Si le dépôt est privé, Hostinger affichera une **clé SSH** (une longue suite de caractères commençant par `ssh-rsa...`). Copiez-la.
+## 3) Android (Expo)
+### Build cloud EAS
+```bash
+cd mobile
+npm ci
+npx expo login
+npx eas build:configure
+npx eas build --platform android
+```
 
-2.  **Sur GitHub** :
-    - Allez dans le dépôt > **Settings** > **Deploy keys**.
-    - Cliquez sur **Add deploy key**.
-    - Titre : `Hostinger`.
-    - Key : Collez la clé copiée depuis Hostinger.
-    - Cochez "Allow write access" (optionnel, mais pratique).
-    - Sauvegardez.
+### Runtime API URL
+Définir `EXPO_PUBLIC_API_BASE_URL` vers l'API publique:
+```bash
+EXPO_PUBLIC_API_BASE_URL=https://api.vocalwalls.io npx expo start --android
+```
 
-3.  **Retour sur Hostinger** :
-    - Cliquez sur **Connecter** ou **Créer**.
-    - Cliquez ensuite sur **Déployer**.
-    - C'est en ligne !
-
-### Méthode 2 : Gestionnaire de Fichiers (Manuel)
-Plus simple si vous ne voulez pas configurer de clés, mais vous devrez refaire ça à chaque mise à jour.
-
-1.  **Sur Hostinger** :
-    - Allez dans **Gestionnaire de fichiers** (Files).
-    - Entrez dans le dossier `public_html`.
-    - Supprimez le fichier `default.php` s'il existe.
-2.  **Depuis votre PC** :
-    - Sélectionnez tous les fichiers de votre dossier `i:\Sites\audio-geo-notes\` (`index.html`, `css`, `assets`, etc.).
-    - Glissez-déposez les fichiers directement dans la fenêtre du navigateur Hostinger.
-
----
-
-## Vérification
-Après déploiement, votre site sera accessible via votre nom de domaine Hostinger (ex: `votre-domaine.com` ou `audio-geo-notes.votre-domaine.com`).
+## 4) Vérifications post-déploiement
+- `GET /api/health` renvoie `status: up`.
+- Le site web charge les notes et les actions like/report mettent à jour les compteurs.
+- L'app mobile lit et publie des notes sur la même API.

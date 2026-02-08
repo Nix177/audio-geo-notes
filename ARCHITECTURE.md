@@ -1,27 +1,51 @@
-# Technical Architecture : Vocal Walls
+# Technical Architecture - Vocal Walls
 
-## Core Systems
+## Overview
+Le projet est organisé en 3 couches:
+- `web` (racine): frontend Leaflet/audio (`index.html`, `css/`, `js/`)
+- `backend`: API REST Node.js/Express + persistance JSON
+- `mobile`: app React Native (Expo) pour Android
 
-### 1. Geo-Location Engine (`H3Indexer.js`)
-- **Technology**: Uber H3 Hexagonal Grid system.
-- **Purpose**: Ultra-precise geofencing with minimal battery impact.
-- **Logic**: Users subscribe to H3 cells. Updates only occur when crossing cell boundaries.
+## Backend (`backend/`)
+### Stack
+- Node.js 18+
+- Express 4
+- CORS
+- Persistance locale JSON (`backend/data/notes.json`)
 
-### 2. Spatial Audio Engine (`SpatialAudioEngine.ts`)
-- **SDK**: **Agora SDK**.
-- **Features**: 
-    - Full 3D Audio spatialization.
-    - Head orientation tracking (if supported by device) to modulate sound source direction.
-    - Distance attenuation curves.
+### API
+- `GET /api/health`
+- `GET /api/notes?mode=archive|live`
+- `POST /api/notes`
+- `POST /api/notes/:id/votes`
+- `POST /api/notes/:id/report`
+- `POST /api/notes/:id/play`
 
-### 3. Entropy & life-cycle (`DecayService.py`)
-- **Concept**: Digital Entropy.
-- **Mechanism**: 
-    - Every bubble starts with a `Health` score (e.g., 100%).
-    - `Health` decreases linearly over time (`-1% / hour`).
-    - **Recharge**: User interactions ("Likes", "Listens") add `Health`.
-    - If `Health <= 0`, the bubble fades/is archived.
+### Data model (note)
+- `id`, `title`, `author`, `category`, `icon`, `type`
+- `isLive`, `lat`, `lng`, `duration`
+- `likes`, `downvotes`, `reports`, `plays`, `listeners`
+- `createdAt`, `updatedAt`
 
-## Data Store
-- **PostgreSQL + PostGIS**: Storing H3 indices and spatial queries.
-- **S3 / R2**: Audio blob storage.
+## Web frontend (`js/app.js`)
+### Runtime behavior
+- Charge des seeds locales, puis tente la synchro API.
+- Fallback local automatique si backend indisponible.
+- Actions modération synchronisées avec l'API:
+  - like/downvote/report
+  - incrément `plays` à l'ouverture du modal
+- Création de notes via bouton record/live (API ou fallback local).
+
+## Mobile frontend (`mobile/App.js`)
+### Runtime behavior
+- Mode `archive/live` avec fetch API.
+- Liste des notes avec score visible.
+- Actions:
+  - création de note
+  - like/downvote/report
+- Rafraîchissement manuel + état de connexion backend.
+
+## Testing
+- Backend: tests d'intégration `node:test` dans `backend/tests/api.test.js`.
+- Web: vérification syntaxique `node --check js/app.js`.
+- Mobile: validation de config et dépendances via `expo-doctor`.

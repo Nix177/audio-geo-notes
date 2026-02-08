@@ -1,22 +1,61 @@
-# Vocal Walls : L'Empreinte Sonore Locale
-> La réalité augmentée sonore pour une ville plus humaine.
+# Vocal Walls - Audio Geo Notes
 
-## Vision
-**Vocal Walls** est une plateforme de réalité augmentée sonore purement communautaire et contextuelle. Contrairement au géofencing publicitaire actuel (ex: GroundTruth), nous privilégions l'expérience humaine et la découverte.
+Projet full-stack avec:
+- **Site web** (frontend Leaflet + audio mock)
+- **Backend API** Node.js/Express avec persistance JSON
+- **Application mobile Android** React Native (Expo)
 
-## Concepts Clés
+## Structure
+- `index.html`, `css/`, `js/`: version web
+- `backend/`: API REST
+- `mobile/`: app React Native Android
 
-### Viralité & Adoption : Le "Street Marketing" Sonore
-Un artiste ou un historien laisse une bulle sonore à un endroit précis. Les auditeurs **doivent être sur place** pour l'entendre. Cela crée un véritable **pèlerinage numérique** : le déplacement physique devient la clé du contenu.
+## 1) Backend (obligatoire)
+```bash
+cd backend
+npm install
+npm start
+```
 
-### Analyse du Marché & Alternatives
-Le marché actuel utilise la géolocalisation pour le ciblage publicitaire. Vocal Walls prend le contre-pied en utilisant la technologie pour ré-enchanter l'espace urbain et créer du lien social invisible.
+API disponible sur `http://localhost:4000`.
 
-## Implémentation Technique
+Endpoints principaux:
+- `GET /api/health`
+- `GET /api/notes?mode=archive|live`
+- `POST /api/notes`
+- `POST /api/notes/:id/votes` (`{ "type": "like" | "dislike" }`)
+- `POST /api/notes/:id/report`
+- `POST /api/notes/:id/play`
 
-- **H3Indexer.js** : Utilisation de la grille hexagonale **H3 d'Uber** pour un géofencing ultra-précis sans vider la batterie.
-- **SpatialAudioEngine.ts** : Intégration du **SDK Agora** pour moduler le son selon la position et l'orientation du visage (Audio 3D).
-- **DecayService.py** : Algorithme d'**entropie numérique**. Les bulles ont une "santé" qui se recharge par les likes. Sans interaction, elles s'effacent, garantissant que seul le contenu pertinent survit.
+## 2) Site web
+Servir le dossier racine en HTTP (pas en `file://`), par exemple:
 
-## Modèle Économique
-- **"Audio-guides" Premium** : Création de parcours immersifs payants pour les offices de tourisme ou les musées à ciel ouvert.
+```bash
+python -m http.server 8080
+```
+
+Puis ouvrir `http://localhost:8080`.
+
+Le web consomme l'API sur `http://localhost:4000` (surcharge possible via `window.VOCAL_WALLS_API_BASE`).
+
+## 3) Mobile Android (React Native / Expo)
+```bash
+cd mobile
+npm install
+npm run android
+```
+
+Par défaut l'app utilise `http://10.0.2.2:4000` (émulateur Android).
+
+Pour un téléphone physique:
+```powershell
+$env:EXPO_PUBLIC_API_BASE_URL="http://<IP_LOCALE_PC>:4000"
+npm run android
+```
+
+## Tests
+Backend:
+```bash
+cd backend
+npm test
+```

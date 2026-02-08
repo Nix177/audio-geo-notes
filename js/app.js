@@ -15,6 +15,135 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 3000);
     }
 
+    const API_BASE_URL = window.VOCAL_WALLS_API_BASE || 'http://localhost:4000';
+    let apiOnline = false;
+    let apiOnlineToastShown = false;
+    let apiOfflineToastShown = false;
+
+    let archiveContent = [];
+    let liveContent = [];
+
+    function toInt(value, fallback = 0) {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) return fallback;
+        return Math.max(0, Math.round(parsed));
+    }
+
+    function normalizeNote(note, fallbackIsLive = false) {
+        const isLive = typeof note.isLive === 'boolean' ? note.isLive : fallbackIsLive;
+        return {
+            ...note,
+            id: note.id || `local_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+            title: note.title || 'Note audio',
+            category: note.category || (isLive ? '🎙️ Live' : '🎧 Ambiance'),
+            icon: note.icon || '🎧',
+            type: note.type || (isLive ? 'live' : 'story'),
+            author: note.author || 'Anonyme',
+            duration: Math.max(10, toInt(note.duration, 120)),
+            baseHealth: toInt(note.baseHealth, 80),
+            likes: toInt(note.likes, 0),
+            downvotes: toInt(note.downvotes, 0),
+            reports: toInt(note.reports, 0),
+            plays: toInt(note.plays, 0),
+            listeners: toInt(note.listeners, 0),
+            lat: Number.isFinite(Number(note.lat)) ? Number(note.lat) : null,
+            lng: Number.isFinite(Number(note.lng)) ? Number(note.lng) : null,
+            isLive: isLive,
+            viewerVote: note.viewerVote || null,
+            viewerReported: Boolean(note.viewerReported)
+        };
+    }
+
+    function setApiStatus(isOnline, silent = false) {
+        apiOnline = isOnline;
+        if (isOnline) {
+            apiOfflineToastShown = false;
+            if (!apiOnlineToastShown && !silent) {
+                showToast('Backend connecté - synchronisation active', 'success');
+                apiOnlineToastShown = true;
+            }
+            return;
+        }
+
+        apiOnlineToastShown = false;
+        if (!apiOfflineToastShown && !silent) {
+            showToast('Backend indisponible - mode local actif', 'info');
+            apiOfflineToastShown = true;
+        }
+    }
+
+    async function apiRequest(path, options = {}) {
+        const requestOptions = {
+            method: options.method || 'GET',
+            headers: { ...(options.headers || {}) }
+        };
+        if (options.body !== undefined) {
+            requestOptions.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
+            requestOptions.headers['content-type'] = 'application/json';
+        }
+
+        const response = await fetch(`${API_BASE_URL}${path}`, requestOptions);
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        return payload.data;
+    }
+
+    function findNoteById(noteId) {
+        return archiveContent.find((note) => note.id === noteId) || liveContent.find((note) => note.id === noteId) || null;
+    }
+
+    function upsertNote(note) {
+        const normalized = normalizeNote(note, note.isLive);
+        archiveContent = archiveContent.filter((entry) => entry.id !== normalized.id);
+        liveContent = liveContent.filter((entry) => entry.id !== normalized.id);
+        if (normalized.isLive) {
+            liveContent.unshift(normalized);
+        } else {
+            archiveContent.unshift(normalized);
+        }
+        return normalized;
+    }
+
+    async function loadNotesFromApi(silent = false) {
+        try {
+            const [archiveData, liveData] = await Promise.all([
+                apiRequest('/api/notes?mode=archive'),
+                apiRequest('/api/notes?mode=live')
+            ]);
+            archiveContent = archiveData.map((note) => normalizeNote(note, false));
+            liveContent = liveData.map((note) => normalizeNote(note, true));
+            setApiStatus(true, silent);
+            refreshMarkers();
+        } catch (error) {
+            setApiStatus(false, silent);
+        }
+    }
+
+    async function createNoteThroughApi(notePayload) {
+        if (apiOnline) {
+            try {
+                const created = await apiRequest('/api/notes', {
+                    method: 'POST',
+                    body: notePayload
+                });
+                return normalizeNote(created, notePayload.isLive);
+            } catch (error) {
+                setApiStatus(false, true);
+            }
+        }
+
+        return normalizeNote({
+            ...notePayload,
+            id: `local_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+            likes: 0,
+            downvotes: 0,
+            reports: 0,
+            plays: 0
+        }, notePayload.isLive);
+    }
+
     // =========================================
     // 2. INITIALIZE MAP
     // =========================================
@@ -28,6 +157,12 @@ document.addEventListener('DOMContentLoaded', () => {
         maxZoom: 20
     }).addTo(map);
 
+    function updateZoneLabel(lat, lng) {
+        const cell = document.getElementById('h3-cell');
+        if (!cell) return;
+        cell.textContent = `Zone: ${lat.toFixed(3)}, ${lng.toFixed(3)}`;
+    }
+
     // =========================================
     // 3. MODE SYSTEM (Archive / Live)
     // =========================================
@@ -39,6 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modeToggle.addEventListener('click', () => {
             currentMode = currentMode === 'archive' ? 'live' : 'archive';
             updateModeUI();
+            updateRecordButton();
             refreshMarkers();
         });
     }
@@ -70,12 +206,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function onLocationFound(e) {
         L.marker(e.latlng, { icon: userIcon }).addTo(map);
         document.getElementById('location-name').textContent = 'Votre position';
+        updateZoneLabel(e.latlng.lat, e.latlng.lng);
         showToast('📍 Position détectée', 'success');
     }
 
     map.on('locationfound', onLocationFound);
     map.on('locationerror', () => {
         document.getElementById('location-name').textContent = 'Paris, Marais';
+        const center = map.getCenter();
+        updateZoneLabel(center.lat, center.lng);
         showToast('Mode démo (Paris)', 'info');
     });
 
@@ -171,13 +310,46 @@ document.addEventListener('DOMContentLoaded', () => {
         updateVoteButtons();
     }
 
+    function applyServerNoteUpdate(serverNote) {
+        const existing = findNoteById(serverNote.id);
+        const merged = normalizeNote({
+            ...(existing || {}),
+            ...serverNote
+        }, serverNote.isLive);
+        const updated = upsertNote(merged);
+        if (currentNote && currentNote.id === updated.id) {
+            currentNote = {
+                ...currentNote,
+                ...updated
+            };
+            document.getElementById('modal-likes').textContent = currentNote.likes;
+            document.getElementById('modal-plays').textContent = currentNote.plays;
+            updateModerationUI();
+        }
+        refreshMarkers();
+    }
+
+    async function syncPlayCount(noteId) {
+        if (!apiOnline || !noteId) return;
+        try {
+            const updated = await apiRequest(`/api/notes/${noteId}/play`, {
+                method: 'POST'
+            });
+            applyServerNoteUpdate(updated);
+        } catch (error) {
+            setApiStatus(false, true);
+        }
+    }
+
     function openModal(note) {
         currentNote = note;
+        currentNote.plays += 1;
+        upsertNote(currentNote);
         document.getElementById('modal-title').textContent = note.title;
         document.getElementById('modal-author').textContent = `Par ${note.author}`;
         document.getElementById('modal-icon').textContent = note.icon;
-        document.getElementById('modal-likes').textContent = note.likes;
-        document.getElementById('modal-plays').textContent = note.plays;
+        document.getElementById('modal-likes').textContent = currentNote.likes;
+        document.getElementById('modal-plays').textContent = currentNote.plays;
         document.getElementById('modal-time').textContent = `0:00 / ${formatDuration(note.duration)}`;
         document.getElementById('modal-category').textContent = note.category;
 
@@ -196,6 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         modal.classList.remove('hidden');
         playSound(note.type, Math.min(note.duration, 2));
+        void syncPlayCount(currentNote.id);
     }
 
     function closeModal() {
@@ -207,45 +380,86 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target === modal) closeModal();
     });
 
-    if (btnLike) btnLike.addEventListener('click', () => {
-        if (!currentNote || currentNote.viewerVote === 'like') return;
-
-        if (currentNote.viewerVote === 'dislike') {
-            currentNote.downvotes = Math.max(0, currentNote.downvotes - 1);
+    if (btnLike) btnLike.addEventListener('click', async () => {
+        if (!currentNote) return;
+        if (currentNote.viewerVote) {
+            showToast('Vote déjà enregistré pour cette note', 'info');
+            return;
         }
 
         currentNote.viewerVote = 'like';
         currentNote.likes += 1;
+        upsertNote(currentNote);
         document.getElementById('modal-likes').textContent = currentNote.likes;
         updateModerationUI();
         showToast('Vote positif enregistré', 'success');
+
+        if (!apiOnline || !currentNote.id) return;
+        try {
+            const updated = await apiRequest(`/api/notes/${currentNote.id}/votes`, {
+                method: 'POST',
+                body: { type: 'like' }
+            });
+            applyServerNoteUpdate(updated);
+        } catch (error) {
+            setApiStatus(false, true);
+        }
     });
 
-    if (btnDislike) btnDislike.addEventListener('click', () => {
-        if (!currentNote || currentNote.viewerVote === 'dislike') return;
-
-        if (currentNote.viewerVote === 'like') {
-            currentNote.likes = Math.max(0, currentNote.likes - 1);
+    if (btnDislike) btnDislike.addEventListener('click', async () => {
+        if (!currentNote) return;
+        if (currentNote.viewerVote) {
+            showToast('Vote déjà enregistré pour cette note', 'info');
+            return;
         }
 
         currentNote.viewerVote = 'dislike';
         currentNote.downvotes += 1;
+        upsertNote(currentNote);
         document.getElementById('modal-likes').textContent = currentNote.likes;
         updateModerationUI();
         showToast('Downvote enregistré', 'info');
+
+        if (!apiOnline || !currentNote.id) return;
+        try {
+            const updated = await apiRequest(`/api/notes/${currentNote.id}/votes`, {
+                method: 'POST',
+                body: { type: 'dislike' }
+            });
+            applyServerNoteUpdate(updated);
+        } catch (error) {
+            setApiStatus(false, true);
+        }
     });
 
-    if (btnReport) btnReport.addEventListener('click', () => {
+    if (btnReport) btnReport.addEventListener('click', async () => {
         if (!currentNote || currentNote.viewerReported) return;
         currentNote.viewerReported = true;
         currentNote.reports += 1;
+        upsertNote(currentNote);
         updateModerationUI();
         showToast('Contenu signalé à la modération', 'info');
+
+        if (!apiOnline || !currentNote.id) return;
+        try {
+            const updated = await apiRequest(`/api/notes/${currentNote.id}/report`, {
+                method: 'POST'
+            });
+            applyServerNoteUpdate(updated);
+        } catch (error) {
+            setApiStatus(false, true);
+        }
     });
 
-    if (btnShare) btnShare.addEventListener('click', () => {
-        navigator.clipboard.writeText(window.location.href);
-        showToast('Lien copié! 📋', 'success');
+    if (btnShare) btnShare.addEventListener('click', async () => {
+        const shareUrl = currentNote ? `${window.location.href}#note=${encodeURIComponent(currentNote.id)}` : window.location.href;
+        try {
+            if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+            await navigator.clipboard.writeText(shareUrl);
+            showToast('Lien copié! 📋', 'success');
+        } catch (error) {
+            showToast('Copie impossible sur ce navigateur', 'info');
+        }
     });
 
     function formatDuration(seconds) {
@@ -283,22 +497,145 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================
     // 7. REALISTIC USE CASES (Content Database)
     // =========================================
-    const archiveContent = [
-        { title: "Histoire du Marais", category: "🏛️ Patrimoine", icon: "🏛️", type: "guide", author: "Office du Tourisme", duration: 180, baseHealth: 95 },
-        { title: "Concert Jazz 1952", category: "🎵 Musique", icon: "🎷", type: "music", author: "Archives Paris", duration: 240, baseHealth: 88 },
-        { title: "Témoignage Résistance", category: "📜 Histoire", icon: "📜", type: "story", author: "Mémorial", duration: 300, baseHealth: 92 },
-        { title: "Guide Café Flore", category: "☕ Culture", icon: "☕", type: "guide", author: "Guide Local", duration: 120, baseHealth: 85 },
-        { title: "Poème Apollinaire", category: "📖 Littérature", icon: "📖", type: "story", author: "BNF Audio", duration: 90, baseHealth: 90 },
-        { title: "Ambiance Marché", category: "🎧 Ambiance", icon: "🎧", type: "music", author: "Sound Designer", duration: 60, baseHealth: 75 },
-        { title: "Anecdote Picasso", category: "🎨 Art", icon: "🎨", type: "story", author: "Musée Picasso", duration: 150, baseHealth: 88 }
-    ];
+    archiveContent = [
+        {
+            id: 'local_marais_history',
+            title: "Histoire du Marais",
+            category: "🏛️ Patrimoine",
+            icon: "🏛️",
+            type: "guide",
+            author: "Office du Tourisme",
+            duration: 180,
+            baseHealth: 95,
+            lat: 48.85818,
+            lng: 2.35812,
+            likes: 42,
+            downvotes: 3,
+            reports: 0,
+            plays: 128
+        },
+        {
+            id: 'local_jazz_1952',
+            title: "Concert Jazz 1952",
+            category: "🎵 Musique",
+            icon: "🎷",
+            type: "music",
+            author: "Archives Paris",
+            duration: 240,
+            baseHealth: 88,
+            lat: 48.8564,
+            lng: 2.3529,
+            likes: 55,
+            downvotes: 6,
+            reports: 1,
+            plays: 214
+        },
+        {
+            id: 'local_resistance_story',
+            title: "Témoignage Résistance",
+            category: "📜 Histoire",
+            icon: "📜",
+            type: "story",
+            author: "Mémorial",
+            duration: 300,
+            baseHealth: 92,
+            lat: 48.8601,
+            lng: 2.3542,
+            likes: 63,
+            downvotes: 2,
+            reports: 0,
+            plays: 301
+        },
+        {
+            id: 'local_cafe_flore',
+            title: "Guide Café Flore",
+            category: "☕ Culture",
+            icon: "☕",
+            type: "guide",
+            author: "Guide Local",
+            duration: 120,
+            baseHealth: 85,
+            lat: 48.8548,
+            lng: 2.3331,
+            likes: 38,
+            downvotes: 5,
+            reports: 0,
+            plays: 167
+        },
+        {
+            id: 'local_apollinaire',
+            title: "Poème Apollinaire",
+            category: "📖 Littérature",
+            icon: "📖",
+            type: "story",
+            author: "BNF Audio",
+            duration: 90,
+            baseHealth: 90,
+            lat: 48.8534,
+            lng: 2.3487,
+            likes: 44,
+            downvotes: 1,
+            reports: 0,
+            plays: 146
+        }
+    ].map((note) => normalizeNote(note, false));
 
-    const liveContent = [
-        { title: "Jazz Session", category: "🎵 Live", icon: "🎷", type: "live", author: "Piano Bar", listeners: 12 },
-        { title: "Visite Guidée", category: "🎙️ Live", icon: "🎙️", type: "live", author: "Marie Guide", listeners: 8 },
-        { title: "Podcast Urbain", category: "🎧 Live", icon: "🎧", type: "live", author: "Radio Marais", listeners: 23 },
-        { title: "Cours de Dessin", category: "🎨 Live", icon: "🎨", type: "live", author: "Atelier 75", listeners: 5 }
-    ];
+    liveContent = [
+        {
+            id: 'local_live_jazz',
+            title: "Jazz Session",
+            category: "🎵 Live",
+            icon: "🎷",
+            type: "live",
+            author: "Piano Bar",
+            listeners: 12,
+            duration: 180,
+            baseHealth: 80,
+            lat: 48.8577,
+            lng: 2.3502,
+            likes: 26,
+            downvotes: 1,
+            reports: 0,
+            plays: 89,
+            isLive: true
+        },
+        {
+            id: 'local_live_guide',
+            title: "Visite Guidée",
+            category: "🎙️ Live",
+            icon: "🎙️",
+            type: "live",
+            author: "Marie Guide",
+            listeners: 8,
+            duration: 180,
+            baseHealth: 79,
+            lat: 48.8593,
+            lng: 2.3605,
+            likes: 30,
+            downvotes: 2,
+            reports: 0,
+            plays: 104,
+            isLive: true
+        },
+        {
+            id: 'local_live_podcast',
+            title: "Podcast Urbain",
+            category: "🎧 Live",
+            icon: "🎧",
+            type: "live",
+            author: "Radio Marais",
+            listeners: 23,
+            duration: 180,
+            baseHealth: 78,
+            lat: 48.8559,
+            lng: 2.3561,
+            likes: 34,
+            downvotes: 4,
+            reports: 1,
+            plays: 122,
+            isLive: true
+        }
+    ].map((note) => normalizeNote(note, true));
 
     // =========================================
     // 8. SMALLER BUBBLE MARKERS
@@ -353,19 +690,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (tooClose && allMarkers.length > 3) return; // Skip if too close and we have enough
 
-        const fullNote = {
+        const fullNote = normalizeNote({
             ...note,
-            coords: coords,
-            isLive: isLive,
-            likes: Math.floor(Math.random() * 80) + 20,
-            downvotes: Math.floor(Math.random() * 15),
-            reports: Math.floor(Math.random() * 3),
-            plays: Math.floor(Math.random() * 300) + 50,
-            duration: note.duration || 120,
-            listeners: note.listeners || 0,
-            viewerVote: null,
-            viewerReported: false
-        };
+            lat: coords[0],
+            lng: coords[1],
+            isLive: isLive
+        }, isLive);
 
         const marker = L.marker(coords, {
             icon: bubbleIcon(note, isLive)
@@ -380,19 +710,32 @@ document.addEventListener('DOMContentLoaded', () => {
         clearMarkers();
         const bounds = map.getBounds();
         const content = currentMode === 'live' ? liveContent : archiveContent;
-        const maxMarkers = currentMode === 'live' ? 3 : 5;
+        const maxMarkers = currentMode === 'live' ? 6 : 10;
 
-        // Generate positions within bounds
         for (let i = 0; i < Math.min(content.length, maxMarkers); i++) {
-            const lat = bounds.getSouth() + Math.random() * (bounds.getNorth() - bounds.getSouth());
-            const lng = bounds.getWest() + Math.random() * (bounds.getEast() - bounds.getWest());
-            addMarkerWithLimit(content[i], [lat, lng], currentMode === 'live');
+            const note = content[i];
+            const hasCoords = Number.isFinite(Number(note.lat)) && Number.isFinite(Number(note.lng));
+            const lat = hasCoords ? Number(note.lat) : bounds.getSouth() + Math.random() * (bounds.getNorth() - bounds.getSouth());
+            const lng = hasCoords ? Number(note.lng) : bounds.getWest() + Math.random() * (bounds.getEast() - bounds.getWest());
+            addMarkerWithLimit(note, [lat, lng], currentMode === 'live');
         }
     }
 
     // Initial load
     refreshMarkers();
-    map.on('moveend', refreshMarkers);
+    {
+        const center = map.getCenter();
+        updateZoneLabel(center.lat, center.lng);
+    }
+    map.on('moveend', () => {
+        const center = map.getCenter();
+        updateZoneLabel(center.lat, center.lng);
+        refreshMarkers();
+    });
+    void loadNotesFromApi(false);
+    setInterval(() => {
+        void loadNotesFromApi(true);
+    }, 30000);
 
     // =========================================
     // 10. RECORDING WITH VOTE SYSTEM
@@ -400,65 +743,78 @@ document.addEventListener('DOMContentLoaded', () => {
     const recordBtn = document.getElementById('record-btn');
     let isRecording = false;
     let recordingTimer = null;
+    let isLiveStreaming = false;
 
     if (recordBtn) {
         recordBtn.addEventListener('click', () => {
             if (currentMode === 'live') {
-                startLiveStream();
+                isLiveStreaming ? stopLiveStream() : void startLiveStream();
             } else {
-                isRecording ? stopRecording() : startRecording();
+                isRecording ? void stopRecording() : startRecording();
             }
         });
     }
 
+    function buildUserNotePayload(isLiveNote) {
+        const center = map.getCenter();
+        const timeLabel = new Date().toLocaleTimeString('fr-FR', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        return {
+            title: isLiveNote ? `Live utilisateur (${timeLabel})` : `Capsule locale (${timeLabel})`,
+            category: isLiveNote ? '🎙️ Live' : '🎧 Communauté',
+            icon: isLiveNote ? '🎙️' : '🎧',
+            type: isLiveNote ? 'live' : 'story',
+            author: 'Vous',
+            duration: isLiveNote ? 180 : 120,
+            isLive: isLiveNote,
+            listeners: isLiveNote ? 1 : 0,
+            lat: center.lat,
+            lng: center.lng
+        };
+    }
+
+    async function publishUserNote(isLiveNote) {
+        const created = await createNoteThroughApi(buildUserNotePayload(isLiveNote));
+        upsertNote(created);
+        refreshMarkers();
+        if (isLiveNote) {
+            showToast('📡 Vous êtes en direct!', 'live');
+        } else {
+            showToast('📤 Note publiée sur la carte', 'success');
+        }
+    }
+
     function startRecording() {
         isRecording = true;
-        recordBtn.classList.add('recording');
-        recordBtn.querySelector('.record-text').textContent = 'Stop';
-        recordBtn.querySelector('.record-icon').textContent = '⏹️';
+        updateRecordButton();
         showToast('🎙️ Enregistrement... (max 10 min)', 'info');
 
         recordingTimer = setTimeout(() => {
-            stopRecording();
+            void stopRecording();
             showToast('⏱️ Limite atteinte', 'info');
         }, 10 * 60 * 1000);
     }
 
-    function stopRecording() {
+    async function stopRecording() {
         isRecording = false;
         clearTimeout(recordingTimer);
-        recordBtn.classList.remove('recording');
-        recordBtn.querySelector('.record-text').textContent = currentMode === 'live' ? 'Go Live' : 'Créer';
-        recordBtn.querySelector('.record-icon').textContent = currentMode === 'live' ? '📡' : '🎙️';
-
-        // Show vote confirmation
-        showVoteModal();
+        recordingTimer = null;
+        updateRecordButton();
+        await publishUserNote(false);
     }
 
-    function startLiveStream() {
-        showToast('📡 Vous êtes en direct!', 'live');
-        recordBtn.classList.add('recording');
-        recordBtn.querySelector('.record-text').textContent = 'Stop Live';
-
-        // Add live marker at current position
-        const center = map.getCenter();
-        const liveNote = {
-            title: "Mon Stream",
-            category: "🎙️ Live",
-            icon: "🎙️",
-            type: "live",
-            author: "Vous",
-            listeners: 1
-        };
-        addMarkerWithLimit(liveNote, [center.lat, center.lng], true);
+    async function startLiveStream() {
+        isLiveStreaming = true;
+        updateRecordButton();
+        await publishUserNote(true);
     }
 
-    function showVoteModal() {
-        // Simple confirmation - in real app this would be a proper modal
-        showToast('📤 Note soumise au vote communautaire!', 'success');
-        setTimeout(() => {
-            showToast('✅ 5 votes reçus - Note publiée!', 'success');
-        }, 2000);
+    function stopLiveStream() {
+        isLiveStreaming = false;
+        updateRecordButton();
+        showToast('Live terminé', 'info');
     }
 
     // Update button text based on mode
@@ -466,13 +822,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!recordBtn) return;
         const icon = recordBtn.querySelector('.record-icon');
         const text = recordBtn.querySelector('.record-text');
+        if (!icon || !text) return;
 
         if (currentMode === 'live') {
-            icon.textContent = '📡';
-            text.textContent = 'Go Live';
+            if (isLiveStreaming) {
+                icon.textContent = '⏹️';
+                text.textContent = 'Stop Live';
+                recordBtn.classList.add('recording');
+            } else {
+                icon.textContent = '📡';
+                text.textContent = 'Go Live';
+                recordBtn.classList.remove('recording');
+            }
         } else {
-            icon.textContent = '🎙️';
-            text.textContent = 'Créer';
+            if (isRecording) {
+                icon.textContent = '⏹️';
+                text.textContent = 'Stop';
+                recordBtn.classList.add('recording');
+            } else {
+                icon.textContent = '🎙️';
+                text.textContent = 'Créer';
+                recordBtn.classList.remove('recording');
+            }
         }
     }
 
@@ -514,6 +885,7 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(update);
     }
 
+    updateRecordButton();
     animateStats();
 
     // =========================================
@@ -530,3 +902,4 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial toast
     setTimeout(() => showToast('👋 Bienvenue! Cliquez sur une bulle', 'info'), 800);
 });
+

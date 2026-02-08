@@ -1,0 +1,17 @@
+{
+  "name": "audio-geo-notes-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend API for Vocal Walls",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test tests/*.test.js",
+    "lint": "node --check src/index.js && node --check src/app.js && node --check src/store.js && node --check src/seed-data.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}
