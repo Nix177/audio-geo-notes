@@ -14,6 +14,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { Audio } from "expo-av";
 import * as Location from "expo-location";
+import MapView, { Marker } from "react-native-maps";
 
 const DEFAULT_API =
   process.env.EXPO_PUBLIC_API_BASE_URL || "http://10.0.2.2:4000";
@@ -38,6 +39,8 @@ function normalize(note) {
     reports: Number.isFinite(Number(note.reports)) ? Number(note.reports) : 0,
     plays: Number.isFinite(Number(note.plays)) ? Number(note.plays) : 0,
     listeners: Number.isFinite(Number(note.listeners)) ? Number(note.listeners) : 0,
+    lat: Number.isFinite(Number(note.lat)) ? Number(note.lat) : null,
+    lng: Number.isFinite(Number(note.lng)) ? Number(note.lng) : null,
     audioUrl: typeof note.audioUrl === "string" ? note.audioUrl : null
   };
 }
@@ -56,6 +59,10 @@ export default function App() {
   const [description, setDescription] = useState("");
   const [author, setAuthor] = useState("Mobile User");
   const [coords, setCoords] = useState({ lat: 48.8566, lng: 2.3522 });
+  const [composerCoords, setComposerCoords] = useState({ lat: 48.8566, lng: 2.3522 });
+  const [pinActive, setPinActive] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [selectedNoteId, setSelectedNoteId] = useState("");
 
   const [recording, setRecording] = useState(null);
   const [recordingOn, setRecordingOn] = useState(false);
@@ -152,6 +159,20 @@ export default function App() {
     () => (mode === "live" ? "Flux live" : "Archive"),
     [mode]
   );
+  const mapNotes = useMemo(
+    () =>
+      notes.filter(
+        (entry) =>
+          (mode === "live" ? entry.isLive : !entry.isLive) &&
+          Number.isFinite(entry.lat) &&
+          Number.isFinite(entry.lng)
+      ),
+    [notes, mode]
+  );
+  const selectedNote = useMemo(
+    () => notes.find((entry) => entry.id === selectedNoteId) || null,
+    [notes, selectedNoteId]
+  );
 
   const upsertLocal = useCallback((updated) => {
     const normalized = normalize(updated);
@@ -198,12 +219,16 @@ export default function App() {
       const loc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced
       });
-      setCoords({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+      const next = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+      setCoords(next);
+      if (!pinActive) {
+        setComposerCoords(next);
+      }
       setError("");
     } catch (locError) {
       setError(locError.message || "Localisation indisponible");
     }
-  }, [ensureLocationPermissions]);
+  }, [ensureLocationPermissions, pinActive]);
 
   const startRecord = useCallback(async () => {
     if (recordingOn) return;
@@ -292,8 +317,8 @@ export default function App() {
         type: "story",
         duration: 120,
         isLive: false,
-        lat: coords.lat,
-        lng: coords.lng,
+        lat: composerCoords.lat,
+        lng: composerCoords.lng,
         listeners: 0
       };
       const created = await apiRequest("/api/notes", {
@@ -317,7 +342,7 @@ export default function App() {
     author,
     description,
     recordedUri,
-    coords,
+    composerCoords,
     apiRequest,
     buildFormData,
     upsertLocal
@@ -507,8 +532,8 @@ export default function App() {
         type: "live",
         duration: 180,
         isLive: true,
-        lat: coords.lat,
-        lng: coords.lng,
+        lat: composerCoords.lat,
+        lng: composerCoords.lng,
         listeners: 1
       };
       const created = await apiRequest("/api/streams/start", {
@@ -537,7 +562,7 @@ export default function App() {
     apiRequest,
     author,
     buildFormData,
-    coords,
+    composerCoords,
     description,
     ensureAudioPermissions,
     recordedUri,
@@ -618,14 +643,76 @@ export default function App() {
           </Pressable>
         </View>
 
-        <View style={styles.cardCompose}>
+        <View style={styles.mapCard}>
+          <MapView
+            style={styles.map}
+            initialRegion={{
+              latitude: coords.lat,
+              longitude: coords.lng,
+              latitudeDelta: 0.02,
+              longitudeDelta: 0.02
+            }}
+            onPress={(event) => {
+              if (!composerOpen) return;
+              const next = {
+                lat: event.nativeEvent.coordinate.latitude,
+                lng: event.nativeEvent.coordinate.longitude
+              };
+              setComposerCoords(next);
+              setPinActive(true);
+            }}
+          >
+            <Marker coordinate={{ latitude: coords.lat, longitude: coords.lng }} title="Ma position" pinColor="#2ed573" />
+            {composerOpen && pinActive ? (
+              <Marker
+                coordinate={{ latitude: composerCoords.lat, longitude: composerCoords.lng }}
+                title="Point de publication"
+                pinColor="#ff4757"
+                draggable
+                onDragEnd={(event) => {
+                  const next = {
+                    lat: event.nativeEvent.coordinate.latitude,
+                    lng: event.nativeEvent.coordinate.longitude
+                  };
+                  setComposerCoords(next);
+                  setPinActive(true);
+                }}
+              />
+            ) : null}
+            {mapNotes.map((entry) => (
+              <Marker
+                key={entry.id}
+                coordinate={{ latitude: entry.lat, longitude: entry.lng }}
+                title={entry.title}
+                description={entry.author}
+                pinColor={entry.isLive ? "#ff6b81" : "#4f7cff"}
+                onPress={() => setSelectedNoteId(entry.id)}
+              />
+            ))}
+          </MapView>
+          <Pressable style={styles.addSoundBtn} onPress={() => setComposerOpen((prev) => !prev)}>
+            <Text style={styles.addSoundBtnText}>{composerOpen ? "Fermer" : "Ajouter un son"}</Text>
+          </Pressable>
+        </View>
+
+        {selectedNote ? (
+          <View style={styles.noteCard}>
+            <Text style={styles.noteTitle}>{selectedNote.title}</Text>
+            <Text style={styles.noteMeta}>{selectedNote.description || "Sans description"}</Text>
+            <Text style={styles.noteMeta}>Par {selectedNote.author} · {selectedNote.category}</Text>
+            <Text style={styles.noteMeta}>Score {score(selectedNote)} · Likes {selectedNote.likes} · Down {selectedNote.downvotes} · Reports {selectedNote.reports}</Text>
+            {selectedNote.isLive ? <Text style={styles.liveTag}>LIVE {selectedNote.streamActive ? "ACTIVE" : "ENDED"} · Auditeurs {selectedNote.listeners}</Text> : null}
+          </View>
+        ) : null}
+
+        {composerOpen ? <View style={styles.cardCompose}>
           <Text style={styles.cardTitle}>Publier un son geolocalise</Text>
+          <Text style={styles.meta}>Pin: {composerCoords.lat.toFixed(5)}, {composerCoords.lng.toFixed(5)}</Text>
           <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Titre" placeholderTextColor="#81838f" />
           <TextInput style={styles.input} value={description} onChangeText={setDescription} placeholder="Description" placeholderTextColor="#81838f" />
           <TextInput style={styles.input} value={author} onChangeText={setAuthor} placeholder="Auteur" placeholderTextColor="#81838f" />
-          <Text style={styles.meta}>Position: {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</Text>
-          <Pressable style={styles.secondaryBtn} onPress={() => void updateLocation()}>
-            <Text style={styles.secondaryBtnText}>Mettre a jour ma position</Text>
+          <Pressable style={styles.secondaryBtn} onPress={() => { setComposerCoords(coords); setPinActive(true); }}>
+            <Text style={styles.secondaryBtnText}>Utiliser ma position</Text>
           </Pressable>
 
           <View style={styles.actionsRow}>
@@ -651,7 +738,7 @@ export default function App() {
             </Pressable>
           </View>
           <Text style={styles.meta}>{liveActive ? `Live actif: ${liveStreamId}` : "Aucun live actif"}</Text>
-        </View>
+        </View> : null}
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -777,6 +864,31 @@ const styles = StyleSheet.create({
   modeText: {
     color: "#fff",
     fontWeight: "700"
+  },
+  mapCard: {
+    height: 320,
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#2d3040",
+    marginBottom: 10
+  },
+  map: {
+    flex: 1
+  },
+  addSoundBtn: {
+    position: "absolute",
+    right: 10,
+    bottom: 10,
+    backgroundColor: "#ff4757",
+    borderRadius: 20,
+    paddingVertical: 9,
+    paddingHorizontal: 14
+  },
+  addSoundBtnText: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 12
   },
   cardCompose: {
     backgroundColor: "#161824",
