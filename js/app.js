@@ -1,5 +1,9 @@
 ﻿document.addEventListener("DOMContentLoaded",()=>{
-const API=window.VOCAL_WALLS_API_BASE||"http://localhost:4000";
+const hostName=window.location.hostname||"localhost";
+const rawApiBase=window.VOCAL_WALLS_API_BASE||"http://localhost:4000";
+const resolvedApiBase=(rawApiBase.includes("localhost")&&hostName!=="localhost"&&hostName!=="127.0.0.1")?rawApiBase.replace("localhost",hostName):rawApiBase;
+const apiCandidates=Array.from(new Set([resolvedApiBase,`http://${hostName}:4000`]));
+let apiBase=apiCandidates[0];
 const POLL_MS=8000,HB_MS=6000;
 let mode="archive",notes=[],current=null,apiOnline=false,offlineToast=false,onlineToast=false,liveTimer=null;
 let marks=[];
@@ -13,7 +17,7 @@ const live={id:null,mic:null,rec:null,hb:null,q:Promise.resolve()};
 const $=(id)=>document.getElementById(id);
 const toast=(m,t="info")=>{const c=$("toast-container");if(!c)return;const e=document.createElement("div");e.className=`toast ${t}`;e.innerHTML=`<span>${t==="success"?"OK":t==="live"?"LIVE":"INFO"}</span> ${m}`;c.appendChild(e);setTimeout(()=>{e.style.opacity="0";setTimeout(()=>e.remove(),250);},3000);};
 const setApi=(ok,silent=false)=>{apiOnline=ok;if(ok){offlineToast=false;if(!onlineToast&&!silent){toast("Backend connecte","success");onlineToast=true;}}else{onlineToast=false;if(!offlineToast&&!silent){toast("Backend indisponible","info");offlineToast=true;}}};
-async function req(path,opt={}){const o={method:opt.method||"GET",headers:{...(opt.headers||{})}};if(opt.body!==undefined){if(opt.body instanceof FormData)o.body=opt.body;else{o.headers["content-type"]="application/json";o.body=JSON.stringify(opt.body);}}let r;try{r=await fetch(`${API}${path}`,o);}catch(_e){const e=new Error("Backend indisponible. Lancez `cd backend && npm start`.");e.status=0;e.network=true;throw e;}const p=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(p.error||`HTTP ${r.status}`);e.status=r.status;throw e;}return p.data;}
+async function req(path,opt={}){const o={method:opt.method||"GET",headers:{...(opt.headers||{})}};if(opt.body!==undefined){if(opt.body instanceof FormData)o.body=opt.body;else{o.headers["content-type"]="application/json";o.body=JSON.stringify(opt.body);}}let lastErr=null;for(const base of apiCandidates){try{const r=await fetch(`${base}${path}`,o);apiBase=base;const p=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(p.error||`HTTP ${r.status}`);e.status=r.status;throw e;}return p.data;}catch(err){lastErr=err;if(err&&typeof err.status==="number"&&err.status>0)throw err;}}const e=new Error(`Backend indisponible (${apiBase}). Ouvrez ${`http://${hostName}:4000/api/health`}`);e.status=0;e.network=true;e.cause=lastErr;throw e;}
 const nrm=(n)=>({id:n.id||`local_${Date.now()}`,title:n.title||"Note",description:n.description||"",category:n.category||"Communaute",icon:n.icon||"A",type:n.type||"story",author:n.author||"Anonyme",duration:Number.isFinite(+n.duration)?Math.max(5,+n.duration):120,isLive:!!n.isLive,isStream:!!n.isStream,streamActive:!!n.streamActive,lat:Number.isFinite(+n.lat)?+n.lat:null,lng:Number.isFinite(+n.lng)?+n.lng:null,likes:Number.isFinite(+n.likes)?+n.likes:0,downvotes:Number.isFinite(+n.downvotes)?+n.downvotes:0,reports:Number.isFinite(+n.reports)?+n.reports:0,plays:Number.isFinite(+n.plays)?+n.plays:0,listeners:Number.isFinite(+n.listeners)?+n.listeners:0,audioUrl:typeof n.audioUrl==="string"?n.audioUrl:null});
 const upsert=(u)=>{const m=nrm(u);notes=[m,...notes.filter(x=>x.id!==m.id)];return m;};
 const score=(n)=>n.likes-n.downvotes-n.reports*2;

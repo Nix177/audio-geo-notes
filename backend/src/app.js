@@ -28,6 +28,10 @@ function parseOptionalNumber(value) {
   return number;
 }
 
+function isInRange(value, min, max) {
+  return Number.isFinite(value) && value >= min && value <= max;
+}
+
 function toStringOrEmpty(value) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -64,9 +68,36 @@ function parseNotePayload(body = {}, file = null, options = {}) {
   const lat = parseOptionalNumber(body.lat);
   const lng = parseOptionalNumber(body.lng);
   const listeners = parseOptionalNumber(body.listeners);
+  const geoAccuracy = parseOptionalNumber(body.geoAccuracy);
+  const geoCapturedAtRaw = toStringOrEmpty(body.geoCapturedAt);
 
   const isLive = forceLive ? true : parseBoolean(body.isLive, false);
   const isStream = forceStream ? true : parseBoolean(body.isStream, false);
+
+  if (lat === undefined || lng === undefined) {
+    return { error: "lat and lng are required" };
+  }
+  if (!isInRange(lat, -90, 90) || !isInRange(lng, -180, 180)) {
+    return { error: "lat or lng is out of range" };
+  }
+
+  if (geoCapturedAtRaw) {
+    const capturedAt = Date.parse(geoCapturedAtRaw);
+    if (!Number.isFinite(capturedAt)) {
+      return { error: "geoCapturedAt must be an ISO date" };
+    }
+    const driftMs = Math.abs(Date.now() - capturedAt);
+    if (driftMs > 5 * 60 * 1000) {
+      return { error: "geolocation proof is too old" };
+    }
+  }
+
+  if (
+    geoAccuracy !== undefined &&
+    (!Number.isFinite(geoAccuracy) || geoAccuracy < 0 || geoAccuracy > 1000)
+  ) {
+    return { error: "geoAccuracy is invalid" };
+  }
 
   return {
     value: {
@@ -80,8 +111,8 @@ function parseNotePayload(body = {}, file = null, options = {}) {
       isLive,
       isStream,
       streamActive: isStream ? true : parseBoolean(body.streamActive, false),
-      lat: lat === undefined ? 48.8566 : lat,
-      lng: lng === undefined ? 2.3522 : lng,
+      lat,
+      lng,
       baseHealth: 80,
       likes: 0,
       downvotes: 0,
@@ -118,12 +149,58 @@ function createUploader(uploadsDir) {
   });
 }
 
-function createApp({ store, uploadsDir }) {
+function getClientKey(req) {
+  const explicitKey = toStringOrEmpty(req.get("x-client-id"));
+  if (explicitKey) return explicitKey.slice(0, 120);
+
+  const forwardedFor = toStringOrEmpty(req.get("x-forwarded-for"));
+  if (forwardedFor) {
+    return forwardedFor.split(",")[0].trim();
+  }
+
+  return req.ip || req.socket?.remoteAddress || "unknown";
+}
+
+function createWriteLimiter({ windowMs = 60_000, maxWrites = 120 } = {}) {
+  const historyByClient = new Map();
+
+  return function writeLimiter(req, res, next) {
+    if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") {
+      return next();
+    }
+
+    const key = getClientKey(req);
+    const now = Date.now();
+    const cutoff = now - windowMs;
+    const history = historyByClient.get(key) || [];
+    const freshHistory = history.filter((entryTs) => entryTs > cutoff);
+
+    if (freshHistory.length >= maxWrites) {
+      return res.status(429).json({
+        ok: false,
+        error: "rate limit exceeded"
+      });
+    }
+
+    freshHistory.push(now);
+    historyByClient.set(key, freshHistory);
+    return next();
+  };
+}
+
+function createApp({ store, uploadsDir, abuseConfig = {} }) {
   const app = express();
   const upload = createUploader(uploadsDir);
+  const writeLimiter = createWriteLimiter({
+    windowMs: abuseConfig.windowMs,
+    maxWrites: abuseConfig.maxWrites
+  });
+  const voteRegistry = new Map();
+  const reportRegistry = new Map();
 
   app.use(cors());
   app.use(express.json({ limit: "1mb" }));
+  app.use("/api", writeLimiter);
   app.use("/uploads", express.static(uploadsDir));
 
   app.get("/api/health", (_req, res) => {
@@ -264,12 +341,31 @@ function createApp({ store, uploadsDir }) {
         return res.status(400).json({ ok: false, error: "type must be like or dislike" });
       }
 
-      const note = await store.applyVote(req.params.id, voteType);
-      if (!note) {
+      const targetNote = store.getNoteById(req.params.id);
+      if (!targetNote) {
         return res.status(404).json({ ok: false, error: "note not found" });
       }
 
-      return res.json({ ok: true, data: serializeNote(note, req) });
+      const clientKey = getClientKey(req);
+      const votesForNote = voteRegistry.get(targetNote.id) || new Map();
+      const previousVote = votesForNote.get(clientKey);
+
+      if (previousVote === voteType) {
+        return res.status(409).json({
+          ok: false,
+          error: "vote already submitted"
+        });
+      }
+
+      if (previousVote) {
+        await store.removeVote(targetNote.id, previousVote);
+      }
+
+      votesForNote.set(clientKey, voteType);
+      voteRegistry.set(targetNote.id, votesForNote);
+
+      const updatedNote = await store.applyVote(req.params.id, voteType);
+      return res.json({ ok: true, data: serializeNote(updatedNote, req) });
     } catch (error) {
       return next(error);
     }
@@ -277,11 +373,25 @@ function createApp({ store, uploadsDir }) {
 
   app.post("/api/notes/:id/report", async (req, res, next) => {
     try {
-      const note = await store.reportNote(req.params.id);
+      const note = store.getNoteById(req.params.id);
       if (!note) {
         return res.status(404).json({ ok: false, error: "note not found" });
       }
-      return res.json({ ok: true, data: serializeNote(note, req) });
+
+      const clientKey = getClientKey(req);
+      const reportsForNote = reportRegistry.get(note.id) || new Set();
+      if (reportsForNote.has(clientKey)) {
+        return res.status(409).json({
+          ok: false,
+          error: "report already submitted"
+        });
+      }
+
+      reportsForNote.add(clientKey);
+      reportRegistry.set(note.id, reportsForNote);
+
+      const reported = await store.reportNote(req.params.id);
+      return res.json({ ok: true, data: serializeNote(reported, req) });
     } catch (error) {
       return next(error);
     }

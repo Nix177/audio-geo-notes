@@ -231,6 +231,24 @@ class NotesStore {
     return note;
   }
 
+  async removeVote(noteId, voteType) {
+    this.ensureReady();
+    const note = this.getNoteById(noteId);
+    if (!note) return null;
+
+    if (voteType === "like") {
+      note.likes = Math.max(0, note.likes - 1);
+    } else if (voteType === "dislike") {
+      note.downvotes = Math.max(0, note.downvotes - 1);
+    } else {
+      throw new Error("Invalid vote type");
+    }
+
+    note.updatedAt = nowIso();
+    await this.persist();
+    return note;
+  }
+
   async reportNote(noteId) {
     this.ensureReady();
     const note = this.getNoteById(noteId);

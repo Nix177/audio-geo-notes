@@ -3,13 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "web": "expo start --web",
     "build:android:preview": "eas build --platform android --profile preview",
     "build:android:prod": "eas build --platform android --profile production",
-    "submit:android:prod": "eas submit --platform android --profile production"
+    "build:ios:prod": "eas build --platform ios --profile production",
+    "submit:android:prod": "eas submit --platform android --profile production",
+    "submit:ios:prod": "eas submit --platform ios --profile production"
   },
   "dependencies": {
     "expo": "~52.0.37",

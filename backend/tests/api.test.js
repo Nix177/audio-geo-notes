@@ -9,7 +9,7 @@ const { NotesStore } = require("../src/store");
 const { createApp } = require("../src/app");
 const { seedNotes } = require("../src/seed-data");
 
-async function startTestServer() {
+async function startTestServer(options = {}) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "audio-geo-notes-"));
   const dbPath = path.join(tempDir, "notes.json");
   const uploadsDir = path.join(tempDir, "uploads");
@@ -18,7 +18,7 @@ async function startTestServer() {
   const store = new NotesStore(dbPath, seedNotes);
   await store.init();
 
-  const app = createApp({ store, uploadsDir });
+  const app = createApp({ store, uploadsDir, abuseConfig: options.abuseConfig });
   const server = app.listen(0);
   await once(server, "listening");
 
@@ -205,4 +205,134 @@ test("POST /api/notes/:id/votes rejects invalid vote type", async (t) => {
   const invalidVote = await jsonResponse(invalidVoteResponse);
   assert.equal(invalidVote.status, 400);
   assert.equal(invalidVote.body.ok, false);
+});
+
+test("POST /api/notes rejects note without lat/lng", async (t) => {
+  const ctx = await startTestServer();
+  t.after(async () => ctx.cleanup());
+
+  const form = buildAudioForm({
+    title: "No geo",
+    description: "missing coords",
+    author: "QA Bot"
+  });
+
+  const response = await fetch(`${ctx.baseUrl}/api/notes`, {
+    method: "POST",
+    body: form
+  });
+  const payload = await jsonResponse(response);
+  assert.equal(payload.status, 400);
+  assert.equal(payload.body.ok, false);
+  assert.match(payload.body.error, /lat and lng are required/i);
+});
+
+test("POST /api/notes/:id/votes blocks duplicate vote and allows switching type", async (t) => {
+  const ctx = await startTestServer();
+  t.after(async () => ctx.cleanup());
+
+  const notesData = await jsonResponse(await fetch(`${ctx.baseUrl}/api/notes`));
+  const initialNote = notesData.body.data[0];
+  const noteId = initialNote.id;
+  const baseLikes = initialNote.likes;
+  const baseDownvotes = initialNote.downvotes;
+
+  const firstLikeResponse = await fetch(`${ctx.baseUrl}/api/notes/${noteId}/votes`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-client-id": "tester-1"
+    },
+    body: JSON.stringify({ type: "like" })
+  });
+  const firstLike = await jsonResponse(firstLikeResponse);
+  assert.equal(firstLike.status, 200);
+  assert.equal(firstLike.body.data.likes, baseLikes + 1);
+
+  const duplicateLikeResponse = await fetch(`${ctx.baseUrl}/api/notes/${noteId}/votes`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-client-id": "tester-1"
+    },
+    body: JSON.stringify({ type: "like" })
+  });
+  const duplicateLike = await jsonResponse(duplicateLikeResponse);
+  assert.equal(duplicateLike.status, 409);
+
+  const switchVoteResponse = await fetch(`${ctx.baseUrl}/api/notes/${noteId}/votes`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-client-id": "tester-1"
+    },
+    body: JSON.stringify({ type: "dislike" })
+  });
+  const switched = await jsonResponse(switchVoteResponse);
+  assert.equal(switched.status, 200);
+  assert.equal(switched.body.data.likes, baseLikes);
+  assert.equal(switched.body.data.downvotes, baseDownvotes + 1);
+});
+
+test("POST /api/notes/:id/report blocks duplicate report from same client", async (t) => {
+  const ctx = await startTestServer();
+  t.after(async () => ctx.cleanup());
+
+  const notesData = await jsonResponse(await fetch(`${ctx.baseUrl}/api/notes`));
+  const noteId = notesData.body.data[0].id;
+
+  const firstReportResponse = await fetch(`${ctx.baseUrl}/api/notes/${noteId}/report`, {
+    method: "POST",
+    headers: { "x-client-id": "reporter-1" }
+  });
+  const firstReport = await jsonResponse(firstReportResponse);
+  assert.equal(firstReport.status, 200);
+  assert.equal(firstReport.body.data.reports, 1);
+
+  const duplicateReportResponse = await fetch(`${ctx.baseUrl}/api/notes/${noteId}/report`, {
+    method: "POST",
+    headers: { "x-client-id": "reporter-1" }
+  });
+  const duplicateReport = await jsonResponse(duplicateReportResponse);
+  assert.equal(duplicateReport.status, 409);
+});
+
+test("write limiter returns 429 after configured threshold", async (t) => {
+  const ctx = await startTestServer({
+    abuseConfig: {
+      windowMs: 10_000,
+      maxWrites: 2
+    }
+  });
+  t.after(async () => ctx.cleanup());
+
+  const notesData = await jsonResponse(await fetch(`${ctx.baseUrl}/api/notes`));
+  const noteId = notesData.body.data[0].id;
+
+  const requestHeaders = { "x-client-id": "ratelimit-1" };
+
+  const first = await jsonResponse(
+    await fetch(`${ctx.baseUrl}/api/notes/${noteId}/play`, {
+      method: "POST",
+      headers: requestHeaders
+    })
+  );
+  assert.equal(first.status, 200);
+
+  const second = await jsonResponse(
+    await fetch(`${ctx.baseUrl}/api/notes/${noteId}/play`, {
+      method: "POST",
+      headers: requestHeaders
+    })
+  );
+  assert.equal(second.status, 200);
+
+  const third = await jsonResponse(
+    await fetch(`${ctx.baseUrl}/api/notes/${noteId}/play`, {
+      method: "POST",
+      headers: requestHeaders
+    })
+  );
+  assert.equal(third.status, 429);
+  assert.equal(third.body.ok, false);
 });

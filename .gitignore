@@ -17,3 +17,10 @@ mobile/dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Temp build dir
+temp_build/
+
+# Environment variables
+.env
+mobile/.env
