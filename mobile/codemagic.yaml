@@ -47,3 +47,27 @@ workflows:
         notify:
           success: true
           failure: true
+
+  android-workflow:
+    working_directory: mobile
+    name: Android Build (Play Store)
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    scripts:
+      - name: Install dependencies
+        script: npm install
+      - name: Expo Prebuild
+        script: npx expo prebuild --platform android
+      - name: Build Android Bundle
+        script: |
+          cd android
+          ./gradlew bundleRelease
+    artifacts:
+      - android/app/build/outputs/bundle/release/*.aab
+    publishing:
+      email:
+        recipients:
+          - nicolas@example.com
+        notify:
+          success: true
+          failure: true
