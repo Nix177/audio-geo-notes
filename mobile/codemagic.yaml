@@ -1,5 +1,6 @@
 workflows:
   ios-workflow:
+    working_directory: mobile
     name: iOS Build (TestFlight)
     max_build_duration: 60
     instance_type: mac_mini_m1
