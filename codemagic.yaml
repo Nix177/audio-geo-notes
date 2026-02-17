@@ -5,30 +5,51 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m1
     environment:
-      # Variables are loaded from Codemagic App Settings > Environment variables
-      # Make sure these are set: CM_CERTIFICATE, CM_CERTIFICATE_PASSWORD, CM_PROVISIONING_PROFILE, EXPO_PUBLIC_API_BASE_URL
+      groups:
+        - vocal_walls
       vars:
-        # Check generated name after local prebuild if unsure, commonly PascalCase of app.json "name"
-        XCODE_WORKSPACE: "ios/VocalWallsMobile.xcworkspace" 
+        XCODE_WORKSPACE: "ios/VocalWallsMobile.xcworkspace"
         XCODE_SCHEME: "VocalWallsMobile"
     scripts:
       - name: Install dependencies
         script: npm install
-      
+
       - name: Expo Prebuild
         script: npx expo prebuild --platform ios
-      
+
+      - name: Debug - Check env vars
+        script: |
+          echo "Checking CM_CERTIFICATE length: ${#CM_CERTIFICATE}"
+          echo "Checking CM_PROVISIONING_PROFILE length: ${#CM_PROVISIONING_PROFILE}"
+          echo "Checking CM_CERTIFICATE_PASSWORD set: $([ -n "$CM_CERTIFICATE_PASSWORD" ] && echo YES || echo NO)"
+
       - name: Initialize Keychain
         script: |
           keychain initialize
-          keychain add-certificates
-      
+          # If CM_CERTIFICATE is set, manually write it to the expected location
+          if [ -n "$CM_CERTIFICATE" ]; then
+            echo "Certificate found in env var, writing to disk..."
+            mkdir -p ~/Library/MobileDevice/Certificates
+            echo "$CM_CERTIFICATE" | base64 --decode > ~/Library/MobileDevice/Certificates/dist.p12
+            echo "Certificate written successfully"
+          else
+            echo "WARNING: CM_CERTIFICATE is empty or not set!"
+          fi
+          # If CM_PROVISIONING_PROFILE is set, write it too
+          if [ -n "$CM_PROVISIONING_PROFILE" ]; then
+            echo "Provisioning profile found, writing to disk..."
+            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+            PROFILE_UUID=$(echo "$CM_PROVISIONING_PROFILE" | base64 --decode | grep -aA1 UUID | grep -o '[-a-zA-Z0-9]\{36\}')
+            echo "$CM_PROVISIONING_PROFILE" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/${PROFILE_UUID}.mobileprovision
+            echo "Provisioning profile written: ${PROFILE_UUID}"
+          fi
+          keychain add-certificates --certificate-password="$CM_CERTIFICATE_PASSWORD"
+
       - name: Set Build Number
         script: |
-          # Sync build number with Codemagic's counter or app.json
           cd ios
           agvtool new-version -all $BUILD_NUMBER
-      
+
       - name: Build IPA
         script: |
           xcode-project build-ipa \
@@ -39,7 +60,7 @@ workflows:
     publishing:
       email:
         recipients:
-          - nicolas@example.com # Update with your email
+          - nicolas@example.com
         notify:
           success: true
           failure: true
@@ -49,6 +70,9 @@ workflows:
     name: Android Build (Play Store)
     max_build_duration: 60
     instance_type: mac_mini_m1
+    environment:
+      groups:
+        - vocal_walls
     scripts:
       - name: Install dependencies
         script: npm install
