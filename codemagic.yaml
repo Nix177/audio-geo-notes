@@ -5,12 +5,8 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m1
     environment:
-      # Upload these to Codemagic App Settings > Environment variables
-      # CM_CERTIFICATE: (Upload dist.p12)
-      # CM_CERTIFICATE_PASSWORD: (Leave blank if no password, or set value)
-      # CM_PROVISIONING_PROFILE: (Upload Vocal_Walls_App_Store.mobileprovision)
-      groups:
-        - vocal_walls
+      # Variables are loaded from Codemagic App Settings > Environment variables
+      # Make sure these are set: CM_CERTIFICATE, CM_CERTIFICATE_PASSWORD, CM_PROVISIONING_PROFILE, EXPO_PUBLIC_API_BASE_URL
       vars:
         # Check generated name after local prebuild if unsure, commonly PascalCase of app.json "name"
         XCODE_WORKSPACE: "ios/VocalWallsMobile.xcworkspace" 
@@ -53,9 +49,6 @@ workflows:
     name: Android Build (Play Store)
     max_build_duration: 60
     instance_type: mac_mini_m1
-    environment:
-      groups:
-        - vocal_walls
     scripts:
       - name: Install dependencies
         script: npm install
