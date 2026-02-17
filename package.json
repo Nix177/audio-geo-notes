@@ -8,13 +8,14 @@
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
+    "android": "expo run:android",
     "web": "expo start --web",
     "build:android:preview": "eas build --platform android --profile preview",
     "build:android:prod": "eas build --platform android --profile production",
     "build:ios:prod": "eas build --platform ios --profile production",
     "submit:android:prod": "eas submit --platform android --profile production",
-    "submit:ios:prod": "eas submit --platform ios --profile production"
+    "submit:ios:prod": "eas submit --platform ios --profile production",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "expo": "~52.0.37",
