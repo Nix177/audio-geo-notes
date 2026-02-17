@@ -17,25 +17,16 @@ workflows:
       - name: Expo Prebuild
         script: npx expo prebuild --platform ios
 
-      - name: Debug - Check env vars
-        script: |
-          echo "Checking CM_CERTIFICATE length: ${#CM_CERTIFICATE}"
-          echo "Checking CM_PROVISIONING_PROFILE length: ${#CM_PROVISIONING_PROFILE}"
-          echo "Checking CM_CERTIFICATE_PASSWORD set: $([ -n "$CM_CERTIFICATE_PASSWORD" ] && echo YES || echo NO)"
-
       - name: Initialize Keychain
         script: |
           keychain initialize
-          # If CM_CERTIFICATE is set, manually write it to the expected location
           if [ -n "$CM_CERTIFICATE" ]; then
-            echo "Certificate found in env var, writing to disk..."
+            echo "Certificate found, writing to disk..."
             mkdir -p ~/Library/MobileDevice/Certificates
             echo "$CM_CERTIFICATE" | base64 --decode > ~/Library/MobileDevice/Certificates/dist.p12
-            echo "Certificate written successfully"
           else
-            echo "WARNING: CM_CERTIFICATE is empty or not set!"
+            echo "WARNING: CM_CERTIFICATE is empty!"
           fi
-          # If CM_PROVISIONING_PROFILE is set, write it too
           if [ -n "$CM_PROVISIONING_PROFILE" ]; then
             echo "Provisioning profile found, writing to disk..."
             mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
@@ -44,6 +35,9 @@ workflows:
             echo "Provisioning profile written: ${PROFILE_UUID}"
           fi
           keychain add-certificates --certificate-password="$CM_CERTIFICATE_PASSWORD"
+
+      - name: Set up code signing
+        script: xcode-project use-profiles
 
       - name: Set Build Number
         script: |
