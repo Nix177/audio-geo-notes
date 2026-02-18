@@ -20,6 +20,11 @@
     "android": {
       "package": "io.vocalwalls.mobile",
       "versionCode": 5,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyD3Ffb65r372dKtoYbMxATspYX9IJAECkE"
+        }
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0f1017"
