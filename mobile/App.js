@@ -890,10 +890,9 @@ export default function App() {
               <Marker
                 key={entry.id}
                 coordinate={{ latitude: entry.lat, longitude: entry.lng }}
-                title={entry.title}
-                description={entry.author}
                 tracksViewChanges={true}
-                onPress={() => {
+                onPress={(e) => {
+                  e.stopPropagation();
                   setSelectedNoteId(entry.id);
                   setShowNoteDetails(true);
                   setComposerOpen(false);
@@ -908,12 +907,11 @@ export default function App() {
             <Marker
               key={entry.id}
               coordinate={{ latitude: entry.lat, longitude: entry.lng }}
-              title={entry.title}
-              description={entry.author}
               pinColor="#4f7cff"
               opacity={opacity}
               tracksViewChanges={false}
-              onPress={() => {
+              onPress={(e) => {
+                e.stopPropagation();
                 setSelectedNoteId(entry.id);
                 setShowNoteDetails(true);
                 setComposerOpen(false);
