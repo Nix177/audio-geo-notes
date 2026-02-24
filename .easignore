@@ -1,15 +1,23 @@
-# Exclude everything by default
-/*
-!/mobile/
-!/mobile/**/*
+# Root .easignore - Blacklist mode
+node_modules/
+.git/
+.idea/
+.vscode/
 
-# But exclude mobile artifacts
-/mobile/node_modules/
-/mobile/.expo/
-/mobile/.expo-shared/
-/mobile/android/
-/mobile/ios/
-/mobile/dist/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Ignore sibling projects/folders
+backend/
+deploy/
+css/
+js/
+temp_build/
+assets/
+index.html
+manifest.json
+*.md
+
+# Keep mobile/ (do not ignore it)
+# But ignore generated stuff inside mobile
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
