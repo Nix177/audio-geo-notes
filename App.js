@@ -135,6 +135,7 @@ export default function App() {
   const [liveActive, setLiveActive] = useState(false);
   const [liveStreamId, setLiveStreamId] = useState("");
   const [liveBusy, setLiveBusy] = useState(false);
+  const [showApiSettings, setShowApiSettings] = useState(false);
 
   const soundRef = useRef(null);
   const previewSoundRef = useRef(null);
@@ -925,7 +926,9 @@ export default function App() {
       <SafeAreaView style={styles.topOverlay} pointerEvents="box-none">
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <Text style={styles.title}>Vocal Walls</Text>
+            <Pressable onPress={() => setShowApiSettings(!showApiSettings)}>
+              <Text style={styles.title}>Vocal Walls</Text>
+            </Pressable>
             <View style={styles.modeToggle}>
               <Pressable style={[styles.modePill, mode === "archive" && styles.modePillActive]} onPress={() => setMode("archive")}>
                 <Text style={styles.modeText}>Archive</Text>
@@ -935,6 +938,28 @@ export default function App() {
               </Pressable>
             </View>
           </View>
+          {showApiSettings && (
+            <View style={styles.apiSettings}>
+              <TextInput
+                style={styles.apiInput}
+                value={apiInput}
+                onChangeText={setApiInput}
+                placeholder="URL de l'API (ex: http://IP:4000)"
+                placeholderTextColor="#81838f"
+                autoCapitalize="none"
+              />
+              <Pressable
+                style={styles.apiSaveBtn}
+                onPress={() => {
+                  setApiBase(apiInput);
+                  setShowApiSettings(false);
+                  void loadNotes(mode);
+                }}
+              >
+                <Text style={styles.apiSaveText}>Saves</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
         {error ? <View style={styles.errorBanner}><Text style={styles.errorText}>{error}</Text></View> : null}
         {successMsg ? <View style={styles.successBanner}><Text style={styles.successText}>{successMsg}</Text></View> : null}
@@ -1200,6 +1225,30 @@ const styles = StyleSheet.create({
     marginTop: 8
   },
   successText: { color: "#fff", fontSize: 14, textAlign: "center", fontWeight: "bold" },
+  apiSettings: {
+    backgroundColor: 'rgba(31, 32, 41, 0.95)',
+    padding: 10,
+    marginTop: 8,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  apiInput: {
+    flex: 1,
+    backgroundColor: '#0f1017',
+    color: '#fff',
+    padding: 8,
+    borderRadius: 6,
+    fontSize: 12
+  },
+  apiSaveBtn: {
+    backgroundColor: '#2ed573',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6
+  },
+  apiSaveText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
 
   bottomSheetContainer: {
     position: 'absolute',
