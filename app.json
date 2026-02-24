@@ -42,7 +42,10 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "This app uses the microphone to record audio notes.",
         "NSLocationWhenInUseUsageDescription": "This app uses your location to place audio notes on the map.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
       }
     },
     "extra": {
@@ -59,7 +62,8 @@
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
-            "buildToolsVersion": "35.0.0"
+            "buildToolsVersion": "35.0.0",
+            "usesCleartextTraffic": true
           },
           "ios": {
             "deploymentTarget": "15.1"
