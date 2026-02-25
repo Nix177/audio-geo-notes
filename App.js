@@ -1145,7 +1145,7 @@ export default function App() {
 
         {/* FAB BUTTON (Add Sound) */}
         {!composerOpen && !showNoteDetails && (
-          <Pressable style={styles.fab} onPress={() => { setComposerOpen(true); setComposerCoords(coords); setPinActive(false); }}>
+          <Pressable style={styles.fab} onPress={async () => { await useMyLocationForPin(); setComposerOpen(true); }}>
             <Text style={styles.fabText}>+</Text>
           </Pressable>
         )}
