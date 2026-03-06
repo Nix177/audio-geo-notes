@@ -438,6 +438,22 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
       voteRegistry.set(targetNote.id, votesForNote);
 
       const updatedNote = await store.applyVote(req.params.id, voteType);
+
+      // Moderation logic for Livestreams: Stop if downvotes > 10% (min 5 total votes)
+      if (updatedNote.isStream && updatedNote.streamActive) {
+        const totalVotes = (updatedNote.likes || 0) + (updatedNote.downvotes || 0);
+        if (totalVotes >= 5) {
+          const downvoteRatio = updatedNote.downvotes / totalVotes;
+          if (downvoteRatio > 0.10) {
+            console.log(`[moderation] Auto-stopping stream ${updatedNote.id} due to high downvotes (${(downvoteRatio * 100).toFixed(1)}%)`);
+            await store.stopStream(updatedNote.id);
+            // Re-fetch to return latest state
+            const stoppedNote = store.getNoteById(updatedNote.id);
+            return res.json({ ok: true, data: serializeNote(stoppedNote, req) });
+          }
+        }
+      }
+
       return res.json({ ok: true, data: serializeNote(updatedNote, req) });
     } catch (error) {
       return next(error);

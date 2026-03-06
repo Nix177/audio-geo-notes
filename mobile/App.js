@@ -155,6 +155,7 @@ export default function App() {
   const [liveActive, setLiveActive] = useState(false);
   const [liveStreamId, setLiveStreamId] = useState("");
   const [liveBusy, setLiveBusy] = useState(false);
+  const [isLiveMode, setIsLiveMode] = useState(false);
   const [showApiSettings, setShowApiSettings] = useState(false);
 
   const soundRef = useRef(null);
@@ -715,7 +716,6 @@ export default function App() {
     const cleanAuthor = author.trim() || "Mobile User";
     const cleanDescription = description.trim();
 
-    if (liveRef.current.active) return;
     if (!cleanTitle) {
       setError("Titre obligatoire pour le live");
       return;
@@ -877,6 +877,10 @@ export default function App() {
           if (!composerOpen) {
             setSelectedNoteId("");
             setShowNoteDetails(false);
+          } else if (isLiveMode) {
+            // Pick location on map ONLY for livestream
+            const { latitude, longitude } = event.nativeEvent.coordinate;
+            setComposerCoords({ lat: latitude, lng: longitude });
           }
         }}
       >
@@ -1007,72 +1011,98 @@ export default function App() {
               </Pressable>
             </View>
 
-            <ScrollView style={styles.composerScroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-              <Pressable style={styles.usePosBtn} onPress={updateComposerLocation}>
-                <Text style={styles.usePosText}>📍 Rafraîchir ma position</Text>
+            <View style={styles.composerModeToggle}>
+              <Pressable 
+                style={[styles.modeBtn, !isLiveMode && styles.modeBtnActive]} 
+                onPress={() => setIsLiveMode(false)}
+              >
+                <Text style={styles.modeBtnText}>Standard</Text>
               </Pressable>
+              <Pressable 
+                style={[styles.modeBtn, isLiveMode && styles.modeBtnActive]} 
+                onPress={() => setIsLiveMode(true)}
+              >
+                <Text style={styles.modeBtnText}>Direct (Live)</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.composerScroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+              {isLiveMode ? (
+                <Text style={[styles.coordText, { color: '#eccc68' }]}>
+                  📍 Mode Livestream : Appuyez n'importe où sur la carte pour choisir le lieu de début du direct.
+                </Text>
+              ) : (
+                <Pressable style={styles.usePosBtn} onPress={updateComposerLocation}>
+                  <Text style={styles.usePosText}>📍 Rafraîchir ma position</Text>
+                </Pressable>
+              )}
               <Text style={styles.coordText}>
-                La note sera postée à votre position actuelle ({composerCoords.lat.toFixed(4)}, {composerCoords.lng.toFixed(4)})
+                La note sera postée à : ({composerCoords.lat.toFixed(4)}, {composerCoords.lng.toFixed(4)})
               </Text>
 
               <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Titre du son..." placeholderTextColor="#81838f" />
               <TextInput style={styles.inputDesc} value={description} onChangeText={setDescription} placeholder="Description (optionnel)" placeholderTextColor="#81838f" multiline />
               <TextInput style={styles.input} value={author} onChangeText={setAuthor} placeholder="Votre pseudo" placeholderTextColor="#81838f" />
 
-              <View style={styles.recordSection}>
-                <Pressable
-                  style={[styles.recordBtn, recordingOn && styles.recordBtnActive]}
-                  onPress={() => (recordingOn ? void stopRecord() : void startRecord())}
-                >
-                  <View style={[styles.recordInner, recordingOn && styles.recordInnerActive]} />
-                </Pressable>
-                <Text style={styles.recordStatus}>
-                  {recordingOn ? "Enregistrement en cours..." : recordedUri ? "Audio enregistré ✅" : "Appuyez pour enregistrer"}
-                </Text>
-
-                {/* Feature 4: Waveform bars */}
-                {recordingOn && meterLevels.length > 0 && (
-                  <View style={styles.waveformContainer}>
-                    {meterLevels.map((level, i) => (
-                      <View
-                        key={i}
-                        style={[
-                          styles.waveformBar,
-                          { height: Math.max(4, level * 36) }
-                        ]}
-                      />
-                    ))}
-                  </View>
-                )}
-
-                {/* Feature 3: Preview button */}
-                {recordedUri && !recordingOn && (
-                  <View style={styles.previewRow}>
-                    <Pressable onPress={togglePreview} style={styles.previewBtn}>
-                      <Text style={styles.previewText}>{previewPlaying ? "⏹ Arrêter" : "▶ Réécouter"}</Text>
-                    </Pressable>
-                    <Pressable onPress={clearRecorded} style={styles.clearBtn}>
-                      <Text style={styles.clearText}>Effacer</Text>
-                    </Pressable>
-                  </View>
-                )}
-              </View>
-
-              <Pressable style={[styles.publishBtn, (publishing || !recordedUri || !title) && styles.disabled]} disabled={publishing || !recordedUri || !title} onPress={() => void publishNote()}>
-                <Text style={styles.publishText}>{publishing ? "Envoi..." : "Publier sur la carte"}</Text>
-              </Pressable>
-
-              <View style={styles.liveSection}>
-                <Text style={styles.liveLabel}>Ou démarrer un direct :</Text>
-                <View style={styles.liveActions}>
-                  <Pressable style={[styles.miniBtn, liveActive && styles.disabled]} onPress={() => void startLive()} disabled={liveActive}>
-                    <Text style={styles.miniBtnText}>Go Live</Text>
+              {!isLiveMode && (
+                <View style={styles.recordSection}>
+                  <Pressable
+                    style={[styles.recordBtn, recordingOn && styles.recordBtnActive]}
+                    onPress={() => (recordingOn ? void stopRecord() : void startRecord())}
+                  >
+                    <View style={[styles.recordInner, recordingOn && styles.recordInnerActive]} />
                   </Pressable>
-                  <Pressable style={[styles.miniBtn, !liveActive && styles.disabled]} onPress={() => void stopLive()} disabled={!liveActive}>
-                    <Text style={styles.miniBtnText}>Stop Live</Text>
+                  <Text style={styles.recordStatus}>
+                    {recordingOn ? "Enregistrement en cours..." : recordedUri ? "Audio enregistré ✅" : "Appuyez pour enregistrer"}
+                  </Text>
+
+                  {/* Feature 4: Waveform bars */}
+                  {recordingOn && meterLevels.length > 0 && (
+                    <View style={styles.waveformContainer}>
+                      {meterLevels.map((level, i) => (
+                        <View
+                          key={i}
+                          style={[
+                            styles.waveformBar,
+                            { height: Math.max(4, level * 36) }
+                          ]}
+                        />
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Feature 3: Preview button */}
+                  {recordedUri && !recordingOn && (
+                    <View style={styles.previewRow}>
+                      <Pressable onPress={togglePreview} style={styles.previewBtn}>
+                        <Text style={styles.previewText}>{previewPlaying ? "⏹ Arrêter" : "▶ Réécouter"}</Text>
+                      </Pressable>
+                      <Pressable onPress={clearRecorded} style={styles.clearBtn}>
+                        <Text style={styles.clearText}>Effacer</Text>
+                      </Pressable>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {!isLiveMode ? (
+                <Pressable style={[styles.publishBtn, (publishing || !recordedUri || !title) && styles.disabled]} disabled={publishing || !recordedUri || !title} onPress={() => void publishNote()}>
+                  <Text style={styles.publishText}>{publishing ? "Envoi..." : "Publier sur la carte"}</Text>
+                </Pressable>
+              ) : (
+                <View style={styles.liveSection}>
+                  <Text style={styles.liveLabel}>Démarrer une diffusion en direct :</Text>
+                  <Pressable 
+                    style={[styles.publishBtn, { backgroundColor: '#eccc68' }, (liveBusy || !title) && styles.disabled]} 
+                    onPress={() => void (liveActive ? stopLive() : startLive())} 
+                    disabled={liveBusy || !title}
+                  >
+                    <Text style={[styles.publishText, { color: '#2f3542' }]}>
+                      {liveBusy ? "Chargement..." : liveActive ? "🛑 Arrêter le Live" : "🔴 Lancer le Direct"}
+                    </Text>
                   </Pressable>
                 </View>
-              </View>
+              )}
             </ScrollView>
           </View>
         )}
@@ -1169,7 +1199,11 @@ export default function App() {
 
         {/* FAB BUTTON (Add Sound) */}
         {!composerOpen && !showNoteDetails && (
-          <Pressable style={styles.fab} onPress={async () => { await updateComposerLocation(); setComposerOpen(true); }}>
+          <Pressable style={styles.fab} onPress={async () => { 
+            await updateComposerLocation(); 
+            setIsLiveMode(false); // Reset to standard behavior on fresh open
+            setComposerOpen(true); 
+          }}>
             <Text style={styles.fabText}>+</Text>
           </Pressable>
         )}
@@ -1302,6 +1336,28 @@ const styles = StyleSheet.create({
   },
   panelTitle: { color: "#fff", fontSize: 18, fontWeight: "bold", flex: 1 },
   closeText: { color: "#ff4757", fontWeight: "600" },
+
+  composerModeToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#0f1017',
+    borderRadius: 10,
+    padding: 4,
+    marginBottom: 15
+  },
+  modeBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 8
+  },
+  modeBtnActive: {
+    backgroundColor: '#2f3542'
+  },
+  modeBtnText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 13
+  },
 
   composerScroll: {
     flexGrow: 0
