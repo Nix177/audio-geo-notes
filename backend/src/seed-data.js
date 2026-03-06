@@ -1,0 +1,73 @@
+﻿const seedNotes = [
+  {
+    id: "note_marais_history",
+    title: "Histoire du Marais",
+    description: "Balade sonore sur l histoire locale du quartier.",
+    category: "Patrimoine",
+    icon: "HIST",
+    type: "guide",
+    author: "Office du Tourisme",
+    duration: 180,
+    baseHealth: 95,
+    isLive: false,
+    isStream: false,
+    lat: 48.85818,
+    lng: 2.35812,
+    likes: 42,
+    downvotes: 3,
+    reports: 0,
+    plays: 128,
+    listeners: 0,
+    audioPath: null,
+    audioMime: null
+  },
+  {
+    id: "note_jazz_1952",
+    title: "Concert Jazz 1952",
+    description: "Archive d ambiance jazz issue des collections de Paris.",
+    category: "Musique",
+    icon: "JAZZ",
+    type: "music",
+    author: "Archives Paris",
+    duration: 240,
+    baseHealth: 88,
+    isLive: false,
+    isStream: false,
+    lat: 48.8564,
+    lng: 2.3529,
+    likes: 55,
+    downvotes: 6,
+    reports: 1,
+    plays: 214,
+    listeners: 0,
+    audioPath: null,
+    audioMime: null
+  },
+  {
+    id: "live_city_podcast",
+    title: "Podcast Urbain Live",
+    description: "Emission locale en direct depuis le centre ville.",
+    category: "Live",
+    icon: "LIVE",
+    type: "live",
+    author: "Radio Marais",
+    duration: 180,
+    baseHealth: 78,
+    isLive: true,
+    isStream: true,
+    streamActive: true,
+    lat: 48.8593,
+    lng: 2.3605,
+    likes: 34,
+    downvotes: 4,
+    reports: 1,
+    plays: 122,
+    listeners: 23,
+    audioPath: null,
+    audioMime: null
+  }
+];
+
+module.exports = {
+  seedNotes
+};
