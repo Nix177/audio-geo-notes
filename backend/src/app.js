@@ -27,17 +27,20 @@ function getDistanceInMeters(lat1, lon1, lat2, lon2) {
 function shouldHideNote(note) {
   const ONE_DAY = 24 * 60 * 60 * 1000;
   const noteAgeMs = note.createdAt ? (Date.now() - new Date(note.createdAt).getTime()) : 0;
-  const isOlderThan3Days = noteAgeMs > (3 * ONE_DAY);
   
   const negativeWeight = (note.downvotes || 0) + ((note.reports || 0) * 2);
   const positiveWeight = (note.likes || 0);
-  const totalVotes = negativeWeight + positiveWeight;
+  const totalWeight = negativeWeight + positiveWeight;
+  const negativeRatio = totalWeight > 0 ? (negativeWeight / totalWeight) : 0;
 
-  if (isOlderThan3Days && negativeWeight > positiveWeight) {
-    return true;
+  // For streams
+  if (note.isStream && note.streamActive) {
+    if (negativeRatio >= 0.15) return true;
   }
 
-  if (totalVotes > 0 && (negativeWeight / totalVotes) > 0.15) {
+  // For regular notes (archive)
+  const isOlderThan3Days = noteAgeMs > (3 * ONE_DAY);
+  if (isOlderThan3Days && negativeRatio >= 0.10) {
     return true;
   }
 
@@ -445,6 +448,12 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
       voteRegistry.set(targetNote.id, votesForNote);
 
       const updatedNote = await store.applyVote(req.params.id, voteType);
+      
+      // Auto-stop stream if 15% negative ratio reached
+      if (updatedNote.isStream && updatedNote.streamActive && shouldHideNote(updatedNote)) {
+        await store.stopStream(updatedNote.id);
+      }
+
       return res.json({ ok: true, data: serializeNote(updatedNote, req) });
     } catch (error) {
       return next(error);
@@ -471,6 +480,12 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
       reportRegistry.set(note.id, reportsForNote);
 
       const reported = await store.reportNote(req.params.id);
+
+      // Auto-stop stream if 15% negative ratio reached
+      if (reported.isStream && reported.streamActive && shouldHideNote(reported)) {
+        await store.stopStream(reported.id);
+      }
+
       return res.json({ ok: true, data: serializeNote(reported, req) });
     } catch (error) {
       return next(error);

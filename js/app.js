@@ -109,7 +109,7 @@ function icon(n){
     const s = likes - neg;
     const ratio = s / totalWeight;
     if (s >= 0) scale = 1.0 + Math.min(ratio * 0.5, 0.5);
-    else opacity = Math.max(0.1, 1.0 + (ratio * 10));
+    else opacity = Math.max(0.1, 1.0 + (ratio * 1.5));
   }
   const p = l ? "pulse-live" : "";
   const color = l ? "#ff4757" : (opacity < 0.9 ? "#a4b0be" : "#4f7cff");

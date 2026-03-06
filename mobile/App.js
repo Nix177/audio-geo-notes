@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View
@@ -20,7 +21,7 @@ import * as Location from "expo-location";
 import MapView, { Marker } from "react-native-maps";
 
 const DEFAULT_API =
-  process.env.EXPO_PUBLIC_API_BASE_URL || "http://10.0.2.2:4000";
+  process.env.EXPO_PUBLIC_API_BASE_URL || "http://31.97.77.6:4000";
 const POLL_MS = 8000;
 const METER_INTERVAL = 200;
 const METER_BARS = 28;
@@ -918,12 +919,13 @@ export default function App() {
           let opacity = 1.0;
 
           if (totalWeight >= 3) {
-            const s = likes - neg;
+            const s = posW - neg;
             const ratio = s / totalWeight;
             if (s >= 0) {
               scale = 1.0 + Math.min(ratio * 0.5, 0.5);
             } else {
-              opacity = Math.max(0.1, 1.0 + (ratio * 10));
+              // Threshold 10% for archive, 15% for stream (handled by opacity)
+              opacity = Math.max(0.1, 1.0 + (ratio * 1.5));
             }
           }
 
