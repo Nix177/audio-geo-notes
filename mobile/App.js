@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -58,15 +58,38 @@ function formatTime(ms) {
   return `${min}:${sec < 10 ? "0" : ""}${sec}`;
 }
 
+/* ── Custom Pin component ── */
+const CustomPin = ({ scale = 1, opacity = 1, color = "#4f7cff" }) => {
+  return (
+    <View style={{ transform: [{ scale }], opacity, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{
+        width: 34, height: 34, borderRadius: 17,
+        backgroundColor: color,
+        borderWidth: 2, borderColor: '#fff',
+        alignItems: 'center', justifyContent: 'center',
+        shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3, elevation: 5
+      }}>
+        <Text style={{ fontSize: 16 }}>🎵</Text>
+      </View>
+      <View style={{ 
+        width: 0, height: 0, 
+        borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 10, 
+        borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: color, 
+        marginTop: -1 
+      }} />
+    </View>
+  );
+};
+
 /* ── Pulsing Live Marker component ── */
 function LivePulseMarker() {
-  const pulse = useRef(new Animated.Value(1)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 0.3, duration: 800, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 800, useNativeDriver: true })
+        Animated.timing(pulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 0, useNativeDriver: true })
       ])
     );
     anim.start();
@@ -75,27 +98,25 @@ function LivePulseMarker() {
 
   return (
     <View style={livePulseStyles.container}>
-      <Animated.View style={[livePulseStyles.ring, { opacity: pulse }]} />
-      <View style={livePulseStyles.dot}>
-        <Text style={livePulseStyles.icon}>📡</Text>
-      </View>
+      <Animated.View style={[
+        livePulseStyles.ring, 
+        { 
+          opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] }),
+          transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.8] }) }] 
+        }
+      ]} />
+      <CustomPin color="#ff4757" />
     </View>
   );
 }
 
 const livePulseStyles = StyleSheet.create({
-  container: { alignItems: "center", justifyContent: "center", width: 44, height: 44 },
+  container: { alignItems: "center", justifyContent: "center", width: 60, height: 60 },
   ring: {
     position: "absolute",
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "rgba(255, 71, 87, 0.35)"
-  },
-  dot: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: "#ff4757",
-    alignItems: "center", justifyContent: "center"
-  },
-  icon: { fontSize: 14 }
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "#ff4757"
+  }
 });
 
 export default function App() {
@@ -114,7 +135,6 @@ export default function App() {
   const [author, setAuthor] = useState("Mobile User");
   const [coords, setCoords] = useState({ lat: 48.8566, lng: 2.3522 });
   const [composerCoords, setComposerCoords] = useState({ lat: 48.8566, lng: 2.3522 });
-  const [pinActive, setPinActive] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [selectedNoteId, setSelectedNoteId] = useState("");
   const [showNoteDetails, setShowNoteDetails] = useState(false);
@@ -135,6 +155,7 @@ export default function App() {
   const [liveActive, setLiveActive] = useState(false);
   const [liveStreamId, setLiveStreamId] = useState("");
   const [liveBusy, setLiveBusy] = useState(false);
+  const [showApiSettings, setShowApiSettings] = useState(false);
 
   const soundRef = useRef(null);
   const previewSoundRef = useRef(null);
@@ -215,14 +236,12 @@ export default function App() {
       });
       const next = { lat: loc.coords.latitude, lng: loc.coords.longitude };
       setCoords(next);
-      if (!pinActive) {
-        setComposerCoords(next);
-      }
+      setComposerCoords(next);
       setError("");
     } catch (locError) {
       setError(locError.message || "Localisation indisponible");
     }
-  }, [ensureLocationPermissions, pinActive]);
+  }, [ensureLocationPermissions]);
 
   useEffect(() => {
     // Auto-request location on mount
@@ -295,7 +314,7 @@ export default function App() {
     });
   }, []);
 
-  const useMyLocationForPin = useCallback(async () => {
+  const updateComposerLocation = useCallback(async () => {
     try {
       await ensureLocationPermissions();
       const loc = await Location.getCurrentPositionAsync({
@@ -304,7 +323,6 @@ export default function App() {
       const next = { lat: loc.coords.latitude, lng: loc.coords.longitude };
       setCoords(next);
       setComposerCoords(next);
-      setPinActive(true);
       setError("");
     } catch (locError) {
       setError("Impossible de recuperer votre position");
@@ -856,14 +874,7 @@ export default function App() {
           longitudeDelta: 0.02
         }}
         onPress={(event) => {
-          if (composerOpen) {
-            const next = {
-              lat: event.nativeEvent.coordinate.latitude,
-              lng: event.nativeEvent.coordinate.longitude
-            };
-            setComposerCoords(next);
-            setPinActive(true);
-          } else {
+          if (!composerOpen) {
             setSelectedNoteId("");
             setShowNoteDetails(false);
           }
@@ -871,19 +882,32 @@ export default function App() {
       >
         {/* Single pin: green when browsing, red when composing */}
         {composerOpen ? (
-          <Marker
-            coordinate={{ latitude: composerCoords.lat, longitude: composerCoords.lng }}
-            title="Position du son"
-            pinColor="#ff4757"
-          />
+          <Marker coordinate={{ latitude: composerCoords.lat, longitude: composerCoords.lng }} title="Position du son">
+            <CustomPin color="#ff4757" />
+          </Marker>
         ) : (
-          <Marker coordinate={{ latitude: coords.lat, longitude: coords.lng }} title="Moi" pinColor="#2ed573" />
+          <Marker coordinate={{ latitude: coords.lat, longitude: coords.lng }} title="Moi">
+            <CustomPin color="#2ed573" />
+          </Marker>
         )}
 
-        {/* Feature 7: Live notes get pulsing markers, archive notes get normal pins */}
         {mapNotes.map((entry) => {
-          const s = getScore(entry);
-          const opacity = s >= 0 ? 1.0 : Math.max(0.2, 1.0 + (s * 0.1));
+          const negativeWeight = (entry.downvotes || 0) + (entry.reports || 0) * 2;
+          const positiveWeight = entry.likes || 0;
+          const totalWeight = positiveWeight + negativeWeight;
+          
+          let scale = 1.0;
+          let opacity = 1.0;
+          
+          if (totalWeight >= 3) {
+            const ratio = (positiveWeight - negativeWeight) / totalWeight;
+            if (ratio > 0) {
+              scale = 1.0 + Math.min(ratio * 0.5, 0.5); // Grow up to 1.5x
+            } else {
+              // Fade out rapidly for negative ratios down to 10% invisible
+              opacity = Math.max(0.1, 1.0 + (ratio * 10));
+            }
+          }
 
           if (entry.isLive) {
             return (
@@ -907,7 +931,6 @@ export default function App() {
             <Marker
               key={entry.id}
               coordinate={{ latitude: entry.lat, longitude: entry.lng }}
-              pinColor="#4f7cff"
               opacity={opacity}
               tracksViewChanges={false}
               onPress={(e) => {
@@ -916,7 +939,9 @@ export default function App() {
                 setShowNoteDetails(true);
                 setComposerOpen(false);
               }}
-            />
+            >
+              <CustomPin scale={scale} opacity={opacity} color="#4f7cff" />
+            </Marker>
           );
         })}
       </MapView>
@@ -925,7 +950,9 @@ export default function App() {
       <SafeAreaView style={styles.topOverlay} pointerEvents="box-none">
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <Text style={styles.title}>Vocal Walls</Text>
+            <Pressable onPress={() => setShowApiSettings(!showApiSettings)}>
+              <Text style={styles.title}>Vocal Walls</Text>
+            </Pressable>
             <View style={styles.modeToggle}>
               <Pressable style={[styles.modePill, mode === "archive" && styles.modePillActive]} onPress={() => setMode("archive")}>
                 <Text style={styles.modeText}>Archive</Text>
@@ -935,6 +962,28 @@ export default function App() {
               </Pressable>
             </View>
           </View>
+          {showApiSettings && (
+            <View style={styles.apiSettings}>
+              <TextInput
+                style={styles.apiInput}
+                value={apiInput}
+                onChangeText={setApiInput}
+                placeholder="URL de l'API (ex: http://IP:4000)"
+                placeholderTextColor="#81838f"
+                autoCapitalize="none"
+              />
+              <Pressable
+                style={styles.apiSaveBtn}
+                onPress={() => {
+                  setApiBase(apiInput);
+                  setShowApiSettings(false);
+                  void loadNotes(mode);
+                }}
+              >
+                <Text style={styles.apiSaveText}>Saves</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
         {error ? <View style={styles.errorBanner}><Text style={styles.errorText}>{error}</Text></View> : null}
         {successMsg ? <View style={styles.successBanner}><Text style={styles.successText}>{successMsg}</Text></View> : null}
@@ -959,11 +1008,11 @@ export default function App() {
             </View>
 
             <ScrollView style={styles.composerScroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-              <Pressable style={styles.usePosBtn} onPress={useMyLocationForPin}>
-                <Text style={styles.usePosText}>📍 Utiliser ma position actuelle</Text>
+              <Pressable style={styles.usePosBtn} onPress={updateComposerLocation}>
+                <Text style={styles.usePosText}>📍 Rafraîchir ma position</Text>
               </Pressable>
               <Text style={styles.coordText}>
-                {composerCoords.lat.toFixed(4)}, {composerCoords.lng.toFixed(4)} • Cliquez sur la carte pour déplacer le pin
+                La note sera postée à votre position actuelle ({composerCoords.lat.toFixed(4)}, {composerCoords.lng.toFixed(4)})
               </Text>
 
               <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Titre du son..." placeholderTextColor="#81838f" />
@@ -1120,7 +1169,7 @@ export default function App() {
 
         {/* FAB BUTTON (Add Sound) */}
         {!composerOpen && !showNoteDetails && (
-          <Pressable style={styles.fab} onPress={() => { setComposerOpen(true); setComposerCoords(coords); setPinActive(false); }}>
+          <Pressable style={styles.fab} onPress={async () => { await updateComposerLocation(); setComposerOpen(true); }}>
             <Text style={styles.fabText}>+</Text>
           </Pressable>
         )}
@@ -1200,6 +1249,30 @@ const styles = StyleSheet.create({
     marginTop: 8
   },
   successText: { color: "#fff", fontSize: 14, textAlign: "center", fontWeight: "bold" },
+  apiSettings: {
+    backgroundColor: 'rgba(31, 32, 41, 0.95)',
+    padding: 10,
+    marginTop: 8,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  apiInput: {
+    flex: 1,
+    backgroundColor: '#0f1017',
+    color: '#fff',
+    padding: 8,
+    borderRadius: 6,
+    fontSize: 12
+  },
+  apiSaveBtn: {
+    backgroundColor: '#2ed573',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6
+  },
+  apiSaveText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
 
   bottomSheetContainer: {
     position: 'absolute',

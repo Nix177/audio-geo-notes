@@ -82,6 +82,8 @@ workflows:
     environment:
       groups:
         - vocal_walls
+      vars:
+        EXPO_PUBLIC_API_BASE_URL: "https://falling-mountain-7237.fly.dev"
     scripts:
       - name: Install dependencies
         script: npm install

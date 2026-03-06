@@ -1,4 +1,4 @@
-﻿const fs = require("node:fs/promises");
+const fs = require("node:fs/promises");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const express = require("express");
@@ -7,6 +7,43 @@ const multer = require("multer");
 
 function scoreForNote(note) {
   return note.likes - note.downvotes - note.reports * 2;
+}
+
+function getDistanceInMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371e3;
+  const phi1 = lat1 * Math.PI / 180;
+  const phi2 = lat2 * Math.PI / 180;
+  const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+  const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+            Math.cos(phi1) * Math.cos(phi2) *
+            Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+}
+
+function shouldHideNote(note) {
+  const ageMs = Date.now() - Date.parse(note.createdAt);
+  const isOlderThan3Days = ageMs > 3 * 24 * 60 * 60 * 1000;
+  
+  const negativeWeight = note.downvotes + (note.reports * 2);
+  const positiveWeight = note.likes;
+  const totalWeight = positiveWeight + negativeWeight;
+  
+  if (isOlderThan3Days && negativeWeight > positiveWeight) {
+    return true;
+  }
+  
+  if (totalWeight > 0) {
+    const negativeRatio = (negativeWeight - positiveWeight) / totalWeight;
+    if (negativeRatio >= 0.15) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 function parseBoolean(value, fallback = false) {
@@ -197,6 +234,7 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
   });
   const voteRegistry = new Map();
   const reportRegistry = new Map();
+  const lastPostByClient = new Map();
 
   app.use(cors());
   app.use(express.json({ limit: "1mb" }));
@@ -223,7 +261,9 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
       });
     }
 
-    const notes = store.listNotes(mode).map((note) => serializeNote(note, req));
+    const notes = store.listNotes(mode)
+      .filter(note => !shouldHideNote(note))
+      .map((note) => serializeNote(note, req));
     return res.json({ ok: true, data: notes });
   });
 
@@ -245,7 +285,23 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
         return res.status(400).json({ ok: false, error: parsed.error });
       }
 
+      const clientKey = getClientKey(req);
+      const lastPost = lastPostByClient.get(clientKey);
+      if (lastPost) {
+        const dist = getDistanceInMeters(lastPost.lat, lastPost.lng, parsed.value.lat, parsed.value.lng);
+        const timeDiffSec = (Date.now() - lastPost.timestamp) / 1000;
+        if (timeDiffSec > 0) {
+          const speed = dist / timeDiffSec;
+          // > 83 m/s (300 km/h) and dist > 200m is considered a cheat
+          if (speed > 83 && dist > 200) {
+            return res.status(403).json({ ok: false, error: "Triche détectée: déplacement trop rapide." });
+          }
+        }
+      }
+
       const created = await store.createNote(parsed.value);
+      lastPostByClient.set(clientKey, { lat: parsed.value.lat, lng: parsed.value.lng, timestamp: Date.now() });
+
       return res.status(201).json({ ok: true, data: serializeNote(created, req) });
     } catch (error) {
       return next(error);
@@ -254,7 +310,9 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
 
   app.get("/api/streams", (req, res) => {
     const activeOnly = parseBoolean(req.query.active, true);
-    const streams = store.listStreams(activeOnly).map((note) => serializeNote(note, req));
+    const streams = store.listStreams(activeOnly)
+      .filter(note => !shouldHideNote(note))
+      .map((note) => serializeNote(note, req));
     return res.json({ ok: true, data: streams });
   });
 
@@ -268,7 +326,22 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
         return res.status(400).json({ ok: false, error: parsed.error });
       }
 
+      const clientKey = getClientKey(req);
+      const lastPost = lastPostByClient.get(clientKey);
+      if (lastPost) {
+        const dist = getDistanceInMeters(lastPost.lat, lastPost.lng, parsed.value.lat, parsed.value.lng);
+        const timeDiffSec = (Date.now() - lastPost.timestamp) / 1000;
+        if (timeDiffSec > 0) {
+          const speed = dist / timeDiffSec;
+          if (speed > 83 && dist > 200) {
+            return res.status(403).json({ ok: false, error: "Triche détectée: déplacement trop rapide." });
+          }
+        }
+      }
+
       const stream = await store.startStream(parsed.value);
+      lastPostByClient.set(clientKey, { lat: parsed.value.lat, lng: parsed.value.lng, timestamp: Date.now() });
+
       return res.status(201).json({ ok: true, data: serializeNote(stream, req) });
     } catch (error) {
       return next(error);

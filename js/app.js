@@ -1,4 +1,4 @@
-﻿document.addEventListener("DOMContentLoaded",()=>{
+document.addEventListener("DOMContentLoaded",()=>{
 const hostName=window.location.hostname||"localhost";
 const rawApiBase=window.VOCAL_WALLS_API_BASE||"http://localhost:4000";
 const resolvedApiBase=(rawApiBase.includes("localhost")&&hostName!=="localhost"&&hostName!=="127.0.0.1")?rawApiBase.replace("localhost",hostName):rawApiBase;
@@ -10,7 +10,7 @@ let marks=[];
 const votes={},reports=new Set();
 const pos={lat:48.8566,lng:2.3522},composerPos={lat:48.8566,lng:2.3522};
 const geo={capturedAt:null,accuracy:null};
-let geoMode="pin",userMarker=null,pinMarker=null,pinChosen=false;
+let geoMode="gps",userMarker=null,pinMarker=null,pinChosen=false;
 const clip={mic:null,rec:null,chunks:[],blob:null,mime:"",on:false};
 const live={id:null,mic:null,rec:null,hb:null,q:Promise.resolve()};
 
@@ -33,14 +33,14 @@ const zone=(a,b)=>{const e=$("h3-cell");if(e)e.textContent=`Zone: ${a.toFixed(3)
 const compPos=()=>{const e=$("composer-location-text");if(e)e.textContent=`Position: ${composerPos.lat.toFixed(5)}, ${composerPos.lng.toFixed(5)}`;};
 const setGeo=(lat,lng,accuracy=null,capturedAt=Date.now())=>{pos.lat=lat;pos.lng=lng;if(geoMode==="gps"){composerPos.lat=lat;composerPos.lng=lng;}geo.accuracy=Number.isFinite(+accuracy)?+accuracy:null;geo.capturedAt=Number.isFinite(+capturedAt)?+capturedAt:Date.now();compPos();zone(lat,lng);};
 const renderUser=()=>{if(userMarker)userMarker.remove();userMarker=L.marker([pos.lat,pos.lng],{icon:userIcon}).addTo(map);};
-const setPin=(lat,lng,centerMap=false)=>{composerPos.lat=lat;composerPos.lng=lng;pinChosen=true;compPos();if(centerMap)map.setView([lat,lng],16);if(pinMarker)pinMarker.remove();pinMarker=L.marker([lat,lng],{icon:pinIcon,draggable:true}).addTo(map);pinMarker.on("dragend",(ev)=>{const p=ev.target.getLatLng();composerPos.lat=p.lat;composerPos.lng=p.lng;pinChosen=true;compPos();});};
+const setPin=(lat,lng,centerMap=false)=>{composerPos.lat=lat;composerPos.lng=lng;pinChosen=true;compPos();if(centerMap)map.setView([lat,lng],16);if(pinMarker)pinMarker.remove();pinMarker=L.marker([lat,lng],{icon:pinIcon,draggable:false}).addTo(map);};
 const clearPin=()=>{if(pinMarker){pinMarker.remove();pinMarker=null;}pinChosen=false;};
 const geoMsg=(err)=>{if(!err)return"Position GPS indisponible";if(err.code===1)return"Autorisez la geolocalisation pour publier.";if(err.code===2)return"Position GPS indisponible (signal).";if(err.code===3)return"Position GPS timeout.";return"Position GPS indisponible";};
 async function captureGps({setView=false}={}){if(!navigator.geolocation){throw new Error("Geolocalisation non supportee");}const p=await new Promise((resolve,reject)=>{navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:12000,maximumAge:0});});const lat=p.coords.latitude,lng=p.coords.longitude,acc=p.coords.accuracy,ts=p.timestamp||Date.now();setGeo(lat,lng,acc,ts);if(setView)map.setView([lat,lng],16);return{lat,lng,acc,ts};}
 map.locate({setView:true,maxZoom:16});
 map.on("locationfound",(ev)=>{setGeo(ev.latlng.lat,ev.latlng.lng,ev.accuracy,Date.now());renderUser();if(!pinChosen)setPin(ev.latlng.lat,ev.latlng.lng,false);$("location-name").textContent="Votre position";});
 map.on("locationerror",()=>{const c=map.getCenter();$("location-name").textContent="Paris centre";zone(c.lat,c.lng);if(!pinChosen)setPin(c.lat,c.lng,false);compPos();});
-map.on("click",(ev)=>{if(geoMode!=="pin")return;setPin(ev.latlng.lat,ev.latlng.lng,false);toast("Pin place sur la carte","success");});
+map.on("click",(ev)=>{toast("Carte cliquée", "info");});
 map.on("moveend",()=>{const c=map.getCenter();zone(c.lat,c.lng);refresh();});
 
 const modeLabel=$("mode-label"),modeBtn=$("mode-toggle");
@@ -66,7 +66,7 @@ if(bRep)bRep.addEventListener("click",()=>void doReport());
 if(bShare)bShare.addEventListener("click",async()=>{const t=current?`${window.location.href}#note=${encodeURIComponent(current.id)}`:window.location.href;try{if(!navigator.clipboard?.writeText)throw new Error("clip");await navigator.clipboard.writeText(t);toast("Lien copie","success");}catch(_e){toast("Copie impossible","info");}});
 
 const cModal=$("composer-modal"),cClose=$("composer-close"),cTitle=$("composer-title"),cDesc=$("composer-description"),cAuthor=$("composer-author"),cUse=$("composer-use-map"),cGeoGps=$("composer-geo-gps"),cGeoPin=$("composer-geo-pin"),cHint=$("composer-location-hint"),cRec=$("composer-record-toggle"),cRecStatus=$("composer-record-status"),cPub=$("composer-publish"),cStart=$("composer-start-live"),cStop=$("composer-stop-live"),launcher=$("record-btn");
-function geoModeUI(){if(cGeoGps)cGeoGps.classList.toggle("active",geoMode==="gps");if(cGeoPin)cGeoPin.classList.toggle("active",geoMode==="pin");if(cUse)cUse.textContent=geoMode==="pin"?"Poser pin au centre":"Mettre a jour GPS";if(cHint)cHint.textContent=geoMode==="pin"?"Cliquez sur la carte pour placer votre pin (ou posez-le au centre).":"Votre publication prendra votre position GPS actuelle.";}
+function geoModeUI(){if(cGeoGps)cGeoGps.style.display="none";if(cGeoPin)cGeoPin.style.display="none";if(cUse)cUse.textContent="Mettre a jour GPS";if(cHint)cHint.textContent="Votre publication prendra votre position GPS actuelle. Restez fair-play !";}
 const cOpen=()=>{cModal.classList.remove("hidden");geoModeUI();compPos();};
 const cHide=()=>{cModal.classList.add("hidden");};
 if(launcher)launcher.addEventListener("click",cOpen);
@@ -80,11 +80,11 @@ async function startRec(){if(!navigator.mediaDevices?.getUserMedia||typeof Media
 async function stopRec(){if(!clip.on||!clip.rec)return;clip.rec.stop();}
 function clearClip(){clip.blob=null;clip.mime="";recUI();}
 if(cRec)cRec.addEventListener("click",()=>{if(clip.on)void stopRec();else void startRec();});
-if(cGeoGps)cGeoGps.addEventListener("click",()=>{geoMode="gps";clearPin();geoModeUI();toast("Mode GPS actif","info");});
-if(cGeoPin)cGeoPin.addEventListener("click",()=>{geoMode="pin";geoModeUI();if(!pinChosen){const c=map.getCenter();setPin(c.lat,c.lng,false);}toast("Mode pin carte actif","info");});
-if(cUse)cUse.addEventListener("click",()=>{if(geoMode==="pin"){const c=map.getCenter();setPin(c.lat,c.lng,true);toast("Pin place au centre","success");return;}void captureGps({setView:true}).then(()=>{toast("Position GPS mise a jour","success");}).catch((err)=>{toast(geoMsg(err),"info");});});
+if(cGeoGps)cGeoGps.addEventListener("click",()=>{});
+if(cGeoPin)cGeoPin.addEventListener("click",()=>{});
+if(cUse)cUse.addEventListener("click",()=>{void captureGps({setView:true}).then(()=>{toast("Position GPS mise a jour","success");}).catch((err)=>{toast(geoMsg(err),"info");});});
 
-async function prepareComposerPosition(){if(geoMode==="pin"){if(!pinChosen){const c=map.getCenter();setPin(c.lat,c.lng,false);}return true;}try{await captureGps({setView:false});return true;}catch(err){toast(geoMsg(err),"info");return false;}}
+async function prepareComposerPosition(){try{await captureGps({setView:false});return true;}catch(err){toast(geoMsg(err),"info");return false;}}
 function buildPayload(liveMode){const t=cTitle.value.trim(),d=cDesc.value.trim(),a=cAuthor.value.trim()||"Web User";if(!t)return{error:"Titre obligatoire"};if(!Number.isFinite(+composerPos.lat)||!Number.isFinite(+composerPos.lng))return{error:"Position invalide"};const payload={title:t,description:d,author:a,category:liveMode?"Live":"Communaute",icon:liveMode?"LIVE":"AUDIO",type:liveMode?"live":"story",duration:liveMode?180:120,isLive:liveMode,lat:composerPos.lat,lng:composerPos.lng,listeners:liveMode?1:0,geoSource:geoMode};if(geoMode==="gps"){if(!geo.capturedAt)return{error:"Position GPS requise"};payload.geoAccuracy=geo.accuracy??-1;payload.geoCapturedAt=new Date(geo.capturedAt).toISOString();}return{value:payload};}
 function ext(m){if(!m)return"webm";if(m.includes("ogg"))return"ogg";if(m.includes("mp4")||m.includes("m4a"))return"m4a";if(m.includes("mpeg"))return"mp3";return"webm";}
 function form(payload,blob=null,name="clip"){const f=new FormData();Object.entries(payload).forEach(([k,v])=>f.append(k,String(v)));if(blob)f.append("audio",blob,`${name}-${Date.now()}.${ext(blob.type||clip.mime)}`);return f;}
@@ -98,7 +98,44 @@ async function stopLive(silent=false){const id=live.id;if(!id)return;if(live.hb)
 if(cStart)cStart.addEventListener("click",()=>void startLive());
 if(cStop)cStop.addEventListener("click",()=>void stopLive(false));
 
-function icon(n){const l=n.isLive,size=l?50:45,b=l?"#ff4757":"#2ed573",bg=l?"rgba(255,71,87,.22)":"rgba(46,213,115,.16)",p=l?"pulse-live":"pulse",dot=n.isStream&&n.streamActive?"<span class=\"live-dot\"></span>":"";return L.divIcon({className:"custom-bubble-mini",html:`<div class=\"bubble-mini ${p}\" style=\"width:${size}px;height:${size}px;border-color:${b};background:${bg};\"><span class=\"bubble-icon\">${n.icon||"A"}</span>${dot}</div>`,iconSize:[size,size],iconAnchor:[size/2,size/2]});}
+function icon(n) {
+  const l = n.isLive;
+  const negativeWeight = (n.downvotes || 0) + (n.reports || 0) * 2;
+  const positiveWeight = n.likes || 0;
+  const totalWeight = positiveWeight + negativeWeight;
+  
+  let scale = 1.0;
+  let opacity = 1.0;
+  
+  if (totalWeight >= 3) {
+    const ratio = (positiveWeight - negativeWeight) / totalWeight;
+    if (ratio > 0) {
+      scale = 1.0 + Math.min(ratio * 0.5, 0.5);
+    } else {
+      opacity = Math.max(0.1, 1.0 + (ratio * 10));
+    }
+  }
+
+  const baseSize = l ? 50 : 45;
+  const size = baseSize * scale;
+  const b = l ? "#ff4757" : "#4f7cff";
+  const bg = l ? "rgba(255,71,87,.22)" : "rgba(79,124,255,.16)";
+  const p = l ? "pulse-live" : "";
+  const dot = n.isStream && n.streamActive ? `<span class="live-dot"></span>` : "";
+
+  return L.divIcon({
+    className: "custom-bubble-mini",
+    html: `<div style="transform: scale(${scale}); opacity: ${opacity}; display: flex; flex-direction: column; align-items: center;">
+             <div class="bubble-mini ${p}" style="width:${baseSize}px;height:${baseSize}px;border-color:${b};background:${bg}; border-width: 2px;">
+               <span class="bubble-icon" style="font-size: ${baseSize/2.5}px;">🎵</span>
+               ${dot}
+             </div>
+             <div style="width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 12px solid ${b}; margin-top: -2px;"></div>
+           </div>`,
+    iconSize: [size, size + 10], 
+    iconAnchor: [size / 2, size + 10]
+  });
+}
 const clear=()=>{layer.clearLayers();marks=[];};
 const close=(c)=>marks.some((m)=>Math.hypot(m.coords[0]-c[0],m.coords[1]-c[1])<0.00028);
 function add(n){const b=map.getBounds(),ok=Number.isFinite(n.lat)&&Number.isFinite(n.lng),lat=ok?n.lat:b.getSouth()+Math.random()*(b.getNorth()-b.getSouth()),lng=ok?n.lng:b.getWest()+Math.random()*(b.getEast()-b.getWest());if(close([lat,lng])&&marks.length>4)return;const mk=L.marker([lat,lng],{icon:icon(n)});mk.on("click",()=>void openModal(n));mk.addTo(layer);marks.push({coords:[lat,lng],marker:mk});}
