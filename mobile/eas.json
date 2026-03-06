@@ -13,7 +13,7 @@
         "simulator": true
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://falling-mountain-7237.fly.dev"
+        "EXPO_PUBLIC_API_BASE_URL": "http://31.97.77.6:4000"
       }
     },
     "production": {
@@ -26,7 +26,7 @@
         "resourceClass": "m-medium"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://falling-mountain-7237.fly.dev"
+        "EXPO_PUBLIC_API_BASE_URL": "http://31.97.77.6:4000"
       }
     }
   },
