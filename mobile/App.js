@@ -20,7 +20,7 @@ import * as Location from "expo-location";
 import MapView, { Marker } from "react-native-maps";
 
 const DEFAULT_API =
-  process.env.EXPO_PUBLIC_API_BASE_URL || "http://10.0.2.2:4000";
+  process.env.EXPO_PUBLIC_API_BASE_URL || "http://31.97.77.6:4000";
 const POLL_MS = 8000;
 const METER_INTERVAL = 200;
 const METER_BARS = 28;
@@ -58,7 +58,7 @@ function formatTime(ms) {
   return `${min}:${sec < 10 ? "0" : ""}${sec}`;
 }
 
-/* ÔöÇÔöÇ Custom Pin component ÔöÇÔöÇ */
+/* Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Custom Pin component Ã”Ã¶Ã‡Ã”Ã¶Ã‡ */
 const CustomPin = ({ scale = 1, opacity = 1, color = "#4f7cff" }) => {
   return (
     <View style={{ transform: [{ scale }], opacity, alignItems: 'center', justifyContent: 'center' }}>
@@ -69,7 +69,7 @@ const CustomPin = ({ scale = 1, opacity = 1, color = "#4f7cff" }) => {
         alignItems: 'center', justifyContent: 'center',
         shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3, elevation: 5
       }}>
-        <Text style={{ fontSize: 16 }}>­ƒÄÁ</Text>
+        <Text style={{ fontSize: 16 }}>Â­Æ’Ã„Ã</Text>
       </View>
       <View style={{ 
         width: 0, height: 0, 
@@ -81,7 +81,7 @@ const CustomPin = ({ scale = 1, opacity = 1, color = "#4f7cff" }) => {
   );
 };
 
-/* ÔöÇÔöÇ Pulsing Live Marker component ÔöÇÔöÇ */
+/* Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Pulsing Live Marker component Ã”Ã¶Ã‡Ã”Ã¶Ã‡ */
 function LivePulseMarker() {
   const pulse = useRef(new Animated.Value(0)).current;
 
@@ -183,8 +183,17 @@ export default function App() {
         }
       }
 
-      const response = await fetch(`${apiBase}${path}`, requestOptions);
-      const payload = await response.json().catch(() => ({}));
+      console.log(`[API] Fetching: ${apiBase}${path}`);
+      const response = await fetch(`${apiBase}${path}`, requestOptions).catch(e => {
+        console.error(`[API] CRITICAL FETCH ERROR: ${e.message} for ${path}`);
+        throw e;
+      });
+      
+      console.log(`[API] Response: ${response.status} for ${path}`);
+      const payload = await response.json().catch((e) => {
+        console.error(`[API] JSON PARSE ERROR: ${e.message} for ${path}`);
+        return {};
+      });
       if (!response.ok) {
         const error = new Error(payload.error || `HTTP ${response.status}`);
         error.status = response.status;
@@ -221,7 +230,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, [mode, loadNotes]);
 
-  // ÔöÇÔöÇ Feature 1: Request location on launch ÔöÇÔöÇ
+  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Feature 1: Request location on launch Ã”Ã¶Ã‡Ã”Ã¶Ã‡
   const ensureLocationPermissions = useCallback(async () => {
     const locationPerm = await Location.requestForegroundPermissionsAsync();
     if (!locationPerm.granted) {
@@ -295,7 +304,7 @@ export default function App() {
     void loadNotes(mode, true);
   }, [loadNotes, mode]);
 
-  // ÔöÇÔöÇ Feature 2: Success message helper ÔöÇÔöÇ
+  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Feature 2: Success message helper Ã”Ã¶Ã‡Ã”Ã¶Ã‡
   const showSuccess = useCallback((msg) => {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(""), 3000);
@@ -330,7 +339,7 @@ export default function App() {
     }
   }, [ensureLocationPermissions]);
 
-  // ÔöÇÔöÇ Feature 4: Waveform metering ÔöÇÔöÇ
+  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Feature 4: Waveform metering Ã”Ã¶Ã‡Ã”Ã¶Ã‡
   const startMeterPolling = useCallback((rec) => {
     setMeterLevels([]);
     meterTimerRef.current = setInterval(async () => {
@@ -400,7 +409,7 @@ export default function App() {
     setMeterLevels([]);
   }, []);
 
-  // ÔöÇÔöÇ Feature 3: Preview recorded audio ÔöÇÔöÇ
+  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Feature 3: Preview recorded audio Ã”Ã¶Ã‡Ã”Ã¶Ã‡
   const togglePreview = useCallback(async () => {
     if (previewPlaying) {
       if (previewSoundRef.current) {
@@ -437,7 +446,7 @@ export default function App() {
         }
       });
     } catch (_e) {
-      setError("Impossible de lire l'aper├ºu");
+      setError("Impossible de lire l'aperâ”œÂºu");
     }
   }, [previewPlaying, recordedUri]);
 
@@ -467,7 +476,7 @@ export default function App() {
     return formData;
   }, []);
 
-  // ÔöÇÔöÇ Feature 2: Publish with confirmation ÔöÇÔöÇ
+  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Feature 2: Publish with confirmation Ã”Ã¶Ã‡Ã”Ã¶Ã‡
   const publishNote = useCallback(async () => {
     const cleanTitle = title.trim();
     const cleanAuthor = author.trim() || "Mobile User";
@@ -509,7 +518,7 @@ export default function App() {
       setRecordedUri("");
       setMeterLevels([]);
       setComposerOpen(false);
-      showSuccess("Ô£à Son publi├® sur la carte !");
+      showSuccess("Ã”Â£Ã  Son publiâ”œÂ® sur la carte !");
     } catch (requestError) {
       setApiOnline(Boolean(requestError?.status));
       setError(requestError.message || "Publication impossible");
@@ -576,7 +585,7 @@ export default function App() {
     [apiRequest, reportedMap, upsertLocal]
   );
 
-  // ÔöÇÔöÇ Feature 5: Playback with progress ÔöÇÔöÇ
+  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Feature 5: Playback with progress Ã”Ã¶Ã‡Ã”Ã¶Ã‡
   const stopPlayback = useCallback(async () => {
     if (soundRef.current) {
       await soundRef.current.stopAsync().catch(() => { });
@@ -797,7 +806,7 @@ export default function App() {
     }
   }, [apiRequest, loadNotes, mode, upsertLocal]);
 
-  // ÔöÇÔöÇ Feature 8: Listen to live stream ÔöÇÔöÇ
+  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Feature 8: Listen to live stream Ã”Ã¶Ã‡Ã”Ã¶Ã‡
   const listenToLive = useCallback(async (note) => {
     if (!note.audioUrl) {
       setError("Aucun flux audio disponible");
@@ -835,7 +844,7 @@ export default function App() {
         }
       });
     } catch (playError) {
-      setError(playError.message || "Impossible d'├®couter le live");
+      setError(playError.message || "Impossible d'â”œÂ®couter le live");
     }
   }, [stopPlayback]);
 
@@ -849,7 +858,7 @@ export default function App() {
     );
   }
 
-  // ÔöÇÔöÇ Progress bar ratio ÔöÇÔöÇ
+  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Progress bar ratio Ã”Ã¶Ã‡Ã”Ã¶Ã‡
   const progressRatio = playbackDur > 0 ? playbackPos / playbackDur : 0;
 
   // --- UI RENDER ---
@@ -1029,15 +1038,15 @@ export default function App() {
             <ScrollView style={styles.composerScroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
               {isLiveMode ? (
                 <Text style={[styles.coordText, { color: '#eccc68' }]}>
-                  ­ƒôì Mode Livestream : Appuyez n'importe o├╣ sur la carte pour choisir le lieu de d├®but du direct.
+                  Â­Æ’Ã´Ã¬ Mode Livestream : Appuyez n'importe oâ”œâ•£ sur la carte pour choisir le lieu de dâ”œÂ®but du direct.
                 </Text>
               ) : (
                 <Pressable style={styles.usePosBtn} onPress={updateComposerLocation}>
-                  <Text style={styles.usePosText}>­ƒôì Rafra├«chir ma position</Text>
+                  <Text style={styles.usePosText}>Â­Æ’Ã´Ã¬ Rafraâ”œÂ«chir ma position</Text>
                 </Pressable>
               )}
               <Text style={styles.coordText}>
-                La note sera post├®e ├á : ({composerCoords.lat.toFixed(4)}, {composerCoords.lng.toFixed(4)})
+                La note sera postâ”œÂ®e â”œÃ¡ : ({composerCoords.lat.toFixed(4)}, {composerCoords.lng.toFixed(4)})
               </Text>
 
               <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Titre du son..." placeholderTextColor="#81838f" />
@@ -1053,7 +1062,7 @@ export default function App() {
                     <View style={[styles.recordInner, recordingOn && styles.recordInnerActive]} />
                   </Pressable>
                   <Text style={styles.recordStatus}>
-                    {recordingOn ? "Enregistrement en cours..." : recordedUri ? "Audio enregistr├® Ô£à" : "Appuyez pour enregistrer"}
+                    {recordingOn ? "Enregistrement en cours..." : recordedUri ? "Audio enregistrâ”œÂ® Ã”Â£Ã " : "Appuyez pour enregistrer"}
                   </Text>
 
                   {/* Feature 4: Waveform bars */}
@@ -1075,7 +1084,7 @@ export default function App() {
                   {recordedUri && !recordingOn && (
                     <View style={styles.previewRow}>
                       <Pressable onPress={togglePreview} style={styles.previewBtn}>
-                        <Text style={styles.previewText}>{previewPlaying ? "ÔÅ╣ Arr├¬ter" : "ÔûÂ R├®├®couter"}</Text>
+                        <Text style={styles.previewText}>{previewPlaying ? "Ã”Ã…â•£ Arrâ”œÂ¬ter" : "Ã”Ã»Ã‚ Râ”œÂ®â”œÂ®couter"}</Text>
                       </Pressable>
                       <Pressable onPress={clearRecorded} style={styles.clearBtn}>
                         <Text style={styles.clearText}>Effacer</Text>
@@ -1091,14 +1100,14 @@ export default function App() {
                 </Pressable>
               ) : (
                 <View style={styles.liveSection}>
-                  <Text style={styles.liveLabel}>D├®marrer une diffusion en direct :</Text>
+                  <Text style={styles.liveLabel}>Dâ”œÂ®marrer une diffusion en direct :</Text>
                   <Pressable 
                     style={[styles.publishBtn, { backgroundColor: '#eccc68' }, (liveBusy || !title) && styles.disabled]} 
                     onPress={() => void (liveActive ? stopLive() : startLive())} 
                     disabled={liveBusy || !title}
                   >
                     <Text style={[styles.publishText, { color: '#2f3542' }]}>
-                      {liveBusy ? "Chargement..." : liveActive ? "­ƒøæ Arr├¬ter le Live" : "­ƒö┤ Lancer le Direct"}
+                      {liveBusy ? "Chargement..." : liveActive ? "Â­Æ’Ã¸Ã¦ Arrâ”œÂ¬ter le Live" : "Â­Æ’Ã¶â”¤ Lancer le Direct"}
                     </Text>
                   </Pressable>
                 </View>
@@ -1117,7 +1126,7 @@ export default function App() {
               </Pressable>
             </View>
             <Text style={styles.noteAuthor}>Par {selectedNote.author}</Text>
-            {selectedNote.isLive && <Text style={styles.liveBadge}>­ƒö┤ En direct</Text>}
+            {selectedNote.isLive && <Text style={styles.liveBadge}>Â­Æ’Ã¶â”¤ En direct</Text>}
             <Text style={styles.noteDesc}>{selectedNote.description}</Text>
 
             <View style={styles.playSection}>
@@ -1129,7 +1138,7 @@ export default function App() {
                   disabled={!selectedNote.audioUrl}
                 >
                   <Text style={styles.playText}>
-                    {playingId === selectedNote.id ? "ÔÅ╣ Arr├¬ter" : "­ƒö┤ ├ëcouter en direct"}
+                    {playingId === selectedNote.id ? "Ã”Ã…â•£ Arrâ”œÂ¬ter" : "Â­Æ’Ã¶â”¤ â”œÃ«couter en direct"}
                   </Text>
                 </Pressable>
               ) : (
@@ -1139,7 +1148,7 @@ export default function App() {
                   disabled={!selectedNote.audioUrl}
                 >
                   <Text style={styles.playText}>
-                    {playingId === selectedNote.id ? "ÔÅ╣ Arr├¬ter" : "ÔûÂ ├ëcouter"}
+                    {playingId === selectedNote.id ? "Ã”Ã…â•£ Arrâ”œÂ¬ter" : "Ã”Ã»Ã‚ â”œÃ«couter"}
                   </Text>
                 </Pressable>
               )}
@@ -1176,7 +1185,7 @@ export default function App() {
                   style={[styles.arrowBtn, votedMap[selectedNote.id] === 'like' && styles.arrowBtnActive]}
                   onPress={() => void submitVote(selectedNote, "like")}
                 >
-                  <Text style={styles.arrowText}>Ôû▓</Text>
+                  <Text style={styles.arrowText}>Ã”Ã»â–“</Text>
                 </Pressable>
                 <Text style={styles.voteCount}>{Math.max(0, getScore(selectedNote))}</Text>
               </View>
@@ -1186,12 +1195,12 @@ export default function App() {
                 style={[styles.arrowBtn, votedMap[selectedNote.id] === 'dislike' && styles.arrowBtnActive]}
                 onPress={() => void submitVote(selectedNote, "dislike")}
               >
-                <Text style={styles.arrowText}>Ôû╝</Text>
+                <Text style={styles.arrowText}>Ã”Ã»â•</Text>
               </Pressable>
 
               {/* REPORT */}
               <Pressable style={styles.reportBtn} onPress={() => void submitReport(selectedNote)}>
-                <Text style={styles.reportText}>­ƒÜ® Signaler</Text>
+                <Text style={styles.reportText}>Â­Æ’ÃœÂ® Signaler</Text>
               </Pressable>
             </View>
           </View>
