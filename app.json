@@ -19,7 +19,7 @@
     ],
     "android": {
       "package": "io.vocalwalls.mobile",
-      "versionCode": 6,
+      "versionCode": 9,
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyD3Ffb65r372dKtoYbMxATspYX9IJAECkE"
