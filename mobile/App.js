@@ -58,38 +58,15 @@ function formatTime(ms) {
   return `${min}:${sec < 10 ? "0" : ""}${sec}`;
 }
 
-/* Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Custom Pin component Ã”Ã¶Ã‡Ã”Ã¶Ã‡ */
-const CustomPin = ({ scale = 1, opacity = 1, color = "#4f7cff" }) => {
-  return (
-    <View style={{ transform: [{ scale }], opacity, alignItems: 'center', justifyContent: 'center' }}>
-      <View style={{
-        width: 34, height: 34, borderRadius: 17,
-        backgroundColor: color,
-        borderWidth: 2, borderColor: '#fff',
-        alignItems: 'center', justifyContent: 'center',
-        shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3, elevation: 5
-      }}>
-        <Text style={{ fontSize: 16 }}>Â­Æ’Ã„Ã</Text>
-      </View>
-      <View style={{ 
-        width: 0, height: 0, 
-        borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 10, 
-        borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: color, 
-        marginTop: -1 
-      }} />
-    </View>
-  );
-};
-
-/* Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Pulsing Live Marker component Ã”Ã¶Ã‡Ã”Ã¶Ã‡ */
+/* ── Pulsing Live Marker component ── */
 function LivePulseMarker() {
-  const pulse = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 0, useNativeDriver: true })
+        Animated.timing(pulse, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 800, useNativeDriver: true })
       ])
     );
     anim.start();
@@ -98,25 +75,27 @@ function LivePulseMarker() {
 
   return (
     <View style={livePulseStyles.container}>
-      <Animated.View style={[
-        livePulseStyles.ring, 
-        { 
-          opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] }),
-          transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.8] }) }] 
-        }
-      ]} />
-      <CustomPin color="#ff4757" />
+      <Animated.View style={[livePulseStyles.ring, { opacity: pulse }]} />
+      <View style={livePulseStyles.dot}>
+        <Text style={livePulseStyles.icon}>📡</Text>
+      </View>
     </View>
   );
 }
 
 const livePulseStyles = StyleSheet.create({
-  container: { alignItems: "center", justifyContent: "center", width: 60, height: 60 },
+  container: { alignItems: "center", justifyContent: "center", width: 44, height: 44 },
   ring: {
     position: "absolute",
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "#ff4757"
-  }
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "rgba(255, 71, 87, 0.35)"
+  },
+  dot: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: "#ff4757",
+    alignItems: "center", justifyContent: "center"
+  },
+  icon: { fontSize: 14 }
 });
 
 export default function App() {
@@ -135,6 +114,7 @@ export default function App() {
   const [author, setAuthor] = useState("Mobile User");
   const [coords, setCoords] = useState({ lat: 48.8566, lng: 2.3522 });
   const [composerCoords, setComposerCoords] = useState({ lat: 48.8566, lng: 2.3522 });
+  const [pinActive, setPinActive] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [selectedNoteId, setSelectedNoteId] = useState("");
   const [showNoteDetails, setShowNoteDetails] = useState(false);
@@ -155,7 +135,6 @@ export default function App() {
   const [liveActive, setLiveActive] = useState(false);
   const [liveStreamId, setLiveStreamId] = useState("");
   const [liveBusy, setLiveBusy] = useState(false);
-  const [isLiveMode, setIsLiveMode] = useState(false);
   const [showApiSettings, setShowApiSettings] = useState(false);
 
   const soundRef = useRef(null);
@@ -230,7 +209,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, [mode, loadNotes]);
 
-  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Feature 1: Request location on launch Ã”Ã¶Ã‡Ã”Ã¶Ã‡
+  // ── Feature 1: Request location on launch ──
   const ensureLocationPermissions = useCallback(async () => {
     const locationPerm = await Location.requestForegroundPermissionsAsync();
     if (!locationPerm.granted) {
@@ -246,12 +225,14 @@ export default function App() {
       });
       const next = { lat: loc.coords.latitude, lng: loc.coords.longitude };
       setCoords(next);
-      setComposerCoords(next);
+      if (!pinActive) {
+        setComposerCoords(next);
+      }
       setError("");
     } catch (locError) {
       setError(locError.message || "Localisation indisponible");
     }
-  }, [ensureLocationPermissions]);
+  }, [ensureLocationPermissions, pinActive]);
 
   useEffect(() => {
     // Auto-request location on mount
@@ -304,7 +285,7 @@ export default function App() {
     void loadNotes(mode, true);
   }, [loadNotes, mode]);
 
-  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Feature 2: Success message helper Ã”Ã¶Ã‡Ã”Ã¶Ã‡
+  // ── Feature 2: Success message helper ──
   const showSuccess = useCallback((msg) => {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(""), 3000);
@@ -324,7 +305,7 @@ export default function App() {
     });
   }, []);
 
-  const updateComposerLocation = useCallback(async () => {
+  const useMyLocationForPin = useCallback(async () => {
     try {
       await ensureLocationPermissions();
       const loc = await Location.getCurrentPositionAsync({
@@ -333,13 +314,14 @@ export default function App() {
       const next = { lat: loc.coords.latitude, lng: loc.coords.longitude };
       setCoords(next);
       setComposerCoords(next);
+      setPinActive(true);
       setError("");
     } catch (locError) {
       setError("Impossible de recuperer votre position");
     }
   }, [ensureLocationPermissions]);
 
-  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Feature 4: Waveform metering Ã”Ã¶Ã‡Ã”Ã¶Ã‡
+  // ── Feature 4: Waveform metering ──
   const startMeterPolling = useCallback((rec) => {
     setMeterLevels([]);
     meterTimerRef.current = setInterval(async () => {
@@ -409,7 +391,7 @@ export default function App() {
     setMeterLevels([]);
   }, []);
 
-  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Feature 3: Preview recorded audio Ã”Ã¶Ã‡Ã”Ã¶Ã‡
+  // ── Feature 3: Preview recorded audio ──
   const togglePreview = useCallback(async () => {
     if (previewPlaying) {
       if (previewSoundRef.current) {
@@ -446,7 +428,7 @@ export default function App() {
         }
       });
     } catch (_e) {
-      setError("Impossible de lire l'aperâ”œÂºu");
+      setError("Impossible de lire l'aperçu");
     }
   }, [previewPlaying, recordedUri]);
 
@@ -476,7 +458,7 @@ export default function App() {
     return formData;
   }, []);
 
-  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Feature 2: Publish with confirmation Ã”Ã¶Ã‡Ã”Ã¶Ã‡
+  // ── Feature 2: Publish with confirmation ──
   const publishNote = useCallback(async () => {
     const cleanTitle = title.trim();
     const cleanAuthor = author.trim() || "Mobile User";
@@ -518,7 +500,7 @@ export default function App() {
       setRecordedUri("");
       setMeterLevels([]);
       setComposerOpen(false);
-      showSuccess("Ã”Â£Ã  Son publiâ”œÂ® sur la carte !");
+      showSuccess("✅ Son publié sur la carte !");
     } catch (requestError) {
       setApiOnline(Boolean(requestError?.status));
       setError(requestError.message || "Publication impossible");
@@ -585,7 +567,7 @@ export default function App() {
     [apiRequest, reportedMap, upsertLocal]
   );
 
-  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Feature 5: Playback with progress Ã”Ã¶Ã‡Ã”Ã¶Ã‡
+  // ── Feature 5: Playback with progress ──
   const stopPlayback = useCallback(async () => {
     if (soundRef.current) {
       await soundRef.current.stopAsync().catch(() => { });
@@ -725,6 +707,7 @@ export default function App() {
     const cleanAuthor = author.trim() || "Mobile User";
     const cleanDescription = description.trim();
 
+    if (liveRef.current.active) return;
     if (!cleanTitle) {
       setError("Titre obligatoire pour le live");
       return;
@@ -806,7 +789,7 @@ export default function App() {
     }
   }, [apiRequest, loadNotes, mode, upsertLocal]);
 
-  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Feature 8: Listen to live stream Ã”Ã¶Ã‡Ã”Ã¶Ã‡
+  // ── Feature 8: Listen to live stream ──
   const listenToLive = useCallback(async (note) => {
     if (!note.audioUrl) {
       setError("Aucun flux audio disponible");
@@ -844,7 +827,7 @@ export default function App() {
         }
       });
     } catch (playError) {
-      setError(playError.message || "Impossible d'â”œÂ®couter le live");
+      setError(playError.message || "Impossible d'écouter le live");
     }
   }, [stopPlayback]);
 
@@ -858,7 +841,7 @@ export default function App() {
     );
   }
 
-  // Ã”Ã¶Ã‡Ã”Ã¶Ã‡ Progress bar ratio Ã”Ã¶Ã‡Ã”Ã¶Ã‡
+  // ── Progress bar ratio ──
   const progressRatio = playbackDur > 0 ? playbackPos / playbackDur : 0;
 
   // --- UI RENDER ---
@@ -883,44 +866,34 @@ export default function App() {
           longitudeDelta: 0.02
         }}
         onPress={(event) => {
-          if (!composerOpen) {
+          if (composerOpen) {
+            const next = {
+              lat: event.nativeEvent.coordinate.latitude,
+              lng: event.nativeEvent.coordinate.longitude
+            };
+            setComposerCoords(next);
+            setPinActive(true);
+          } else {
             setSelectedNoteId("");
             setShowNoteDetails(false);
-          } else if (isLiveMode) {
-            // Pick location on map ONLY for livestream
-            const { latitude, longitude } = event.nativeEvent.coordinate;
-            setComposerCoords({ lat: latitude, lng: longitude });
           }
         }}
       >
         {/* Single pin: green when browsing, red when composing */}
         {composerOpen ? (
-          <Marker coordinate={{ latitude: composerCoords.lat, longitude: composerCoords.lng }} title="Position du son">
-            <CustomPin color="#ff4757" />
-          </Marker>
+          <Marker
+            coordinate={{ latitude: composerCoords.lat, longitude: composerCoords.lng }}
+            title="Position du son"
+            pinColor="#ff4757"
+          />
         ) : (
-          <Marker coordinate={{ latitude: coords.lat, longitude: coords.lng }} title="Moi">
-            <CustomPin color="#2ed573" />
-          </Marker>
+          <Marker coordinate={{ latitude: coords.lat, longitude: coords.lng }} title="Moi" pinColor="#2ed573" />
         )}
 
+        {/* Feature 7: Live notes get pulsing markers, archive notes get normal pins */}
         {mapNotes.map((entry) => {
-          const negativeWeight = (entry.downvotes || 0) + (entry.reports || 0) * 2;
-          const positiveWeight = entry.likes || 0;
-          const totalWeight = positiveWeight + negativeWeight;
-          
-          let scale = 1.0;
-          let opacity = 1.0;
-          
-          if (totalWeight >= 3) {
-            const ratio = (positiveWeight - negativeWeight) / totalWeight;
-            if (ratio > 0) {
-              scale = 1.0 + Math.min(ratio * 0.5, 0.5); // Grow up to 1.5x
-            } else {
-              // Fade out rapidly for negative ratios down to 10% invisible
-              opacity = Math.max(0.1, 1.0 + (ratio * 10));
-            }
-          }
+          const s = getScore(entry);
+          const opacity = s >= 0 ? 1.0 : Math.max(0.2, 1.0 + (s * 0.1));
 
           if (entry.isLive) {
             return (
@@ -944,6 +917,7 @@ export default function App() {
             <Marker
               key={entry.id}
               coordinate={{ latitude: entry.lat, longitude: entry.lng }}
+              pinColor="#4f7cff"
               opacity={opacity}
               tracksViewChanges={false}
               onPress={(e) => {
@@ -952,9 +926,7 @@ export default function App() {
                 setShowNoteDetails(true);
                 setComposerOpen(false);
               }}
-            >
-              <CustomPin scale={scale} opacity={opacity} color="#4f7cff" />
-            </Marker>
+            />
           );
         })}
       </MapView>
@@ -1020,98 +992,72 @@ export default function App() {
               </Pressable>
             </View>
 
-            <View style={styles.composerModeToggle}>
-              <Pressable 
-                style={[styles.modeBtn, !isLiveMode && styles.modeBtnActive]} 
-                onPress={() => setIsLiveMode(false)}
-              >
-                <Text style={styles.modeBtnText}>Standard</Text>
-              </Pressable>
-              <Pressable 
-                style={[styles.modeBtn, isLiveMode && styles.modeBtnActive]} 
-                onPress={() => setIsLiveMode(true)}
-              >
-                <Text style={styles.modeBtnText}>Direct (Live)</Text>
-              </Pressable>
-            </View>
-
             <ScrollView style={styles.composerScroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-              {isLiveMode ? (
-                <Text style={[styles.coordText, { color: '#eccc68' }]}>
-                  Â­Æ’Ã´Ã¬ Mode Livestream : Appuyez n'importe oâ”œâ•£ sur la carte pour choisir le lieu de dâ”œÂ®but du direct.
-                </Text>
-              ) : (
-                <Pressable style={styles.usePosBtn} onPress={updateComposerLocation}>
-                  <Text style={styles.usePosText}>Â­Æ’Ã´Ã¬ Rafraâ”œÂ«chir ma position</Text>
-                </Pressable>
-              )}
+              <Pressable style={styles.usePosBtn} onPress={useMyLocationForPin}>
+                <Text style={styles.usePosText}>📍 Utiliser ma position actuelle</Text>
+              </Pressable>
               <Text style={styles.coordText}>
-                La note sera postâ”œÂ®e â”œÃ¡ : ({composerCoords.lat.toFixed(4)}, {composerCoords.lng.toFixed(4)})
+                {composerCoords.lat.toFixed(4)}, {composerCoords.lng.toFixed(4)} • Cliquez sur la carte pour déplacer le pin
               </Text>
 
               <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Titre du son..." placeholderTextColor="#81838f" />
               <TextInput style={styles.inputDesc} value={description} onChangeText={setDescription} placeholder="Description (optionnel)" placeholderTextColor="#81838f" multiline />
               <TextInput style={styles.input} value={author} onChangeText={setAuthor} placeholder="Votre pseudo" placeholderTextColor="#81838f" />
 
-              {!isLiveMode && (
-                <View style={styles.recordSection}>
-                  <Pressable
-                    style={[styles.recordBtn, recordingOn && styles.recordBtnActive]}
-                    onPress={() => (recordingOn ? void stopRecord() : void startRecord())}
-                  >
-                    <View style={[styles.recordInner, recordingOn && styles.recordInnerActive]} />
-                  </Pressable>
-                  <Text style={styles.recordStatus}>
-                    {recordingOn ? "Enregistrement en cours..." : recordedUri ? "Audio enregistrâ”œÂ® Ã”Â£Ã " : "Appuyez pour enregistrer"}
-                  </Text>
-
-                  {/* Feature 4: Waveform bars */}
-                  {recordingOn && meterLevels.length > 0 && (
-                    <View style={styles.waveformContainer}>
-                      {meterLevels.map((level, i) => (
-                        <View
-                          key={i}
-                          style={[
-                            styles.waveformBar,
-                            { height: Math.max(4, level * 36) }
-                          ]}
-                        />
-                      ))}
-                    </View>
-                  )}
-
-                  {/* Feature 3: Preview button */}
-                  {recordedUri && !recordingOn && (
-                    <View style={styles.previewRow}>
-                      <Pressable onPress={togglePreview} style={styles.previewBtn}>
-                        <Text style={styles.previewText}>{previewPlaying ? "Ã”Ã…â•£ Arrâ”œÂ¬ter" : "Ã”Ã»Ã‚ Râ”œÂ®â”œÂ®couter"}</Text>
-                      </Pressable>
-                      <Pressable onPress={clearRecorded} style={styles.clearBtn}>
-                        <Text style={styles.clearText}>Effacer</Text>
-                      </Pressable>
-                    </View>
-                  )}
-                </View>
-              )}
-
-              {!isLiveMode ? (
-                <Pressable style={[styles.publishBtn, (publishing || !recordedUri || !title) && styles.disabled]} disabled={publishing || !recordedUri || !title} onPress={() => void publishNote()}>
-                  <Text style={styles.publishText}>{publishing ? "Envoi..." : "Publier sur la carte"}</Text>
+              <View style={styles.recordSection}>
+                <Pressable
+                  style={[styles.recordBtn, recordingOn && styles.recordBtnActive]}
+                  onPress={() => (recordingOn ? void stopRecord() : void startRecord())}
+                >
+                  <View style={[styles.recordInner, recordingOn && styles.recordInnerActive]} />
                 </Pressable>
-              ) : (
-                <View style={styles.liveSection}>
-                  <Text style={styles.liveLabel}>Dâ”œÂ®marrer une diffusion en direct :</Text>
-                  <Pressable 
-                    style={[styles.publishBtn, { backgroundColor: '#eccc68' }, (liveBusy || !title) && styles.disabled]} 
-                    onPress={() => void (liveActive ? stopLive() : startLive())} 
-                    disabled={liveBusy || !title}
-                  >
-                    <Text style={[styles.publishText, { color: '#2f3542' }]}>
-                      {liveBusy ? "Chargement..." : liveActive ? "Â­Æ’Ã¸Ã¦ Arrâ”œÂ¬ter le Live" : "Â­Æ’Ã¶â”¤ Lancer le Direct"}
-                    </Text>
+                <Text style={styles.recordStatus}>
+                  {recordingOn ? "Enregistrement en cours..." : recordedUri ? "Audio enregistré ✅" : "Appuyez pour enregistrer"}
+                </Text>
+
+                {/* Feature 4: Waveform bars */}
+                {recordingOn && meterLevels.length > 0 && (
+                  <View style={styles.waveformContainer}>
+                    {meterLevels.map((level, i) => (
+                      <View
+                        key={i}
+                        style={[
+                          styles.waveformBar,
+                          { height: Math.max(4, level * 36) }
+                        ]}
+                      />
+                    ))}
+                  </View>
+                )}
+
+                {/* Feature 3: Preview button */}
+                {recordedUri && !recordingOn && (
+                  <View style={styles.previewRow}>
+                    <Pressable onPress={togglePreview} style={styles.previewBtn}>
+                      <Text style={styles.previewText}>{previewPlaying ? "⏹ Arrêter" : "▶ Réécouter"}</Text>
+                    </Pressable>
+                    <Pressable onPress={clearRecorded} style={styles.clearBtn}>
+                      <Text style={styles.clearText}>Effacer</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+
+              <Pressable style={[styles.publishBtn, (publishing || !recordedUri || !title) && styles.disabled]} disabled={publishing || !recordedUri || !title} onPress={() => void publishNote()}>
+                <Text style={styles.publishText}>{publishing ? "Envoi..." : "Publier sur la carte"}</Text>
+              </Pressable>
+
+              <View style={styles.liveSection}>
+                <Text style={styles.liveLabel}>Ou démarrer un direct :</Text>
+                <View style={styles.liveActions}>
+                  <Pressable style={[styles.miniBtn, liveActive && styles.disabled]} onPress={() => void startLive()} disabled={liveActive}>
+                    <Text style={styles.miniBtnText}>Go Live</Text>
+                  </Pressable>
+                  <Pressable style={[styles.miniBtn, !liveActive && styles.disabled]} onPress={() => void stopLive()} disabled={!liveActive}>
+                    <Text style={styles.miniBtnText}>Stop Live</Text>
                   </Pressable>
                 </View>
-              )}
+              </View>
             </ScrollView>
           </View>
         )}
@@ -1126,7 +1072,7 @@ export default function App() {
               </Pressable>
             </View>
             <Text style={styles.noteAuthor}>Par {selectedNote.author}</Text>
-            {selectedNote.isLive && <Text style={styles.liveBadge}>Â­Æ’Ã¶â”¤ En direct</Text>}
+            {selectedNote.isLive && <Text style={styles.liveBadge}>🔴 En direct</Text>}
             <Text style={styles.noteDesc}>{selectedNote.description}</Text>
 
             <View style={styles.playSection}>
@@ -1138,7 +1084,7 @@ export default function App() {
                   disabled={!selectedNote.audioUrl}
                 >
                   <Text style={styles.playText}>
-                    {playingId === selectedNote.id ? "Ã”Ã…â•£ Arrâ”œÂ¬ter" : "Â­Æ’Ã¶â”¤ â”œÃ«couter en direct"}
+                    {playingId === selectedNote.id ? "⏹ Arrêter" : "🔴 Écouter en direct"}
                   </Text>
                 </Pressable>
               ) : (
@@ -1148,7 +1094,7 @@ export default function App() {
                   disabled={!selectedNote.audioUrl}
                 >
                   <Text style={styles.playText}>
-                    {playingId === selectedNote.id ? "Ã”Ã…â•£ Arrâ”œÂ¬ter" : "Ã”Ã»Ã‚ â”œÃ«couter"}
+                    {playingId === selectedNote.id ? "⏹ Arrêter" : "▶ Écouter"}
                   </Text>
                 </Pressable>
               )}
@@ -1185,7 +1131,7 @@ export default function App() {
                   style={[styles.arrowBtn, votedMap[selectedNote.id] === 'like' && styles.arrowBtnActive]}
                   onPress={() => void submitVote(selectedNote, "like")}
                 >
-                  <Text style={styles.arrowText}>Ã”Ã»â–“</Text>
+                  <Text style={styles.arrowText}>▲</Text>
                 </Pressable>
                 <Text style={styles.voteCount}>{Math.max(0, getScore(selectedNote))}</Text>
               </View>
@@ -1195,12 +1141,12 @@ export default function App() {
                 style={[styles.arrowBtn, votedMap[selectedNote.id] === 'dislike' && styles.arrowBtnActive]}
                 onPress={() => void submitVote(selectedNote, "dislike")}
               >
-                <Text style={styles.arrowText}>Ã”Ã»â•</Text>
+                <Text style={styles.arrowText}>▼</Text>
               </Pressable>
 
               {/* REPORT */}
               <Pressable style={styles.reportBtn} onPress={() => void submitReport(selectedNote)}>
-                <Text style={styles.reportText}>Â­Æ’ÃœÂ® Signaler</Text>
+                <Text style={styles.reportText}>🚩 Signaler</Text>
               </Pressable>
             </View>
           </View>
@@ -1208,11 +1154,7 @@ export default function App() {
 
         {/* FAB BUTTON (Add Sound) */}
         {!composerOpen && !showNoteDetails && (
-          <Pressable style={styles.fab} onPress={async () => { 
-            await updateComposerLocation(); 
-            setIsLiveMode(false); // Reset to standard behavior on fresh open
-            setComposerOpen(true); 
-          }}>
+          <Pressable style={styles.fab} onPress={async () => { await useMyLocationForPin(); setComposerOpen(true); }}>
             <Text style={styles.fabText}>+</Text>
           </Pressable>
         )}
@@ -1345,28 +1287,6 @@ const styles = StyleSheet.create({
   },
   panelTitle: { color: "#fff", fontSize: 18, fontWeight: "bold", flex: 1 },
   closeText: { color: "#ff4757", fontWeight: "600" },
-
-  composerModeToggle: {
-    flexDirection: 'row',
-    backgroundColor: '#0f1017',
-    borderRadius: 10,
-    padding: 4,
-    marginBottom: 15
-  },
-  modeBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 8
-  },
-  modeBtnActive: {
-    backgroundColor: '#2f3542'
-  },
-  modeBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 13
-  },
 
   composerScroll: {
     flexGrow: 0
