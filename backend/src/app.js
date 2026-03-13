@@ -242,7 +242,8 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
     return {
       ...payload,
       clientVote: voteRegistry.get(note.id)?.get(clientKey) || null,
-      clientReported: reportRegistry.get(note.id)?.has(clientKey) || false
+      clientReported: reportRegistry.get(note.id)?.has(clientKey) || false,
+      canDelete: Boolean(note.creatorKey && note.creatorKey === clientKey)
     };
   };
 
@@ -315,7 +316,7 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
 
       lastPostByClient.set(clientKey, { lat, lng, timestamp: now });
 
-      const created = await store.createNote(parsed.value);
+      const created = await store.createNote({ ...parsed.value, creatorKey: clientKey });
       return res.status(201).json({ ok: true, data: serializeForClient(created, req) });
     } catch (error) {
       return next(error);
@@ -360,7 +361,7 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
 
       lastPostByClient.set(clientKey, { lat, lng, timestamp: now });
 
-      const stream = await store.startStream(parsed.value);
+      const stream = await store.startStream({ ...parsed.value, creatorKey: clientKey });
       return res.status(201).json({ ok: true, data: serializeForClient(stream, req) });
     } catch (error) {
       return next(error);
@@ -421,6 +422,36 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
         return res.status(404).json({ ok: false, error: "stream not found" });
       }
       return res.json({ ok: true, data: serializeForClient(stopped, req) });
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.delete("/api/notes/:id", async (req, res, next) => {
+    try {
+      const note = store.getNoteById(req.params.id);
+      if (!note) {
+        return res.status(404).json({ ok: false, error: "note not found" });
+      }
+
+      const clientKey = getClientKey(req);
+      if (!note.creatorKey || note.creatorKey !== clientKey) {
+        return res.status(403).json({ ok: false, error: "not allowed to delete this note" });
+      }
+
+      const removed = await store.removeNote(req.params.id);
+      if (!removed) {
+        return res.status(404).json({ ok: false, error: "note not found" });
+      }
+
+      voteRegistry.delete(removed.id);
+      reportRegistry.delete(removed.id);
+
+      if (removed.audioPath && path.dirname(removed.audioPath) === path.resolve(uploadsDir)) {
+        await fs.unlink(removed.audioPath).catch(() => {});
+      }
+
+      return res.json({ ok: true, data: { id: removed.id } });
     } catch (error) {
       return next(error);
     }

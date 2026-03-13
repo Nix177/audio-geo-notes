@@ -54,6 +54,7 @@ function normalizeNote(note, index) {
     listeners: clampInteger(toSafeNumber(note.listeners, 0), 0),
     audioPath: typeof note.audioPath === "string" && note.audioPath ? note.audioPath : null,
     audioMime: typeof note.audioMime === "string" && note.audioMime ? note.audioMime : null,
+    creatorKey: typeof note.creatorKey === "string" && note.creatorKey ? note.creatorKey : null,
     createdAt: note.createdAt || timestamp,
     updatedAt: note.updatedAt || timestamp
   };
@@ -129,6 +130,16 @@ class NotesStore {
   getNoteById(noteId) {
     this.ensureReady();
     return this.state.notes.find((note) => note.id === noteId) || null;
+  }
+
+  async removeNote(noteId) {
+    this.ensureReady();
+    const index = this.state.notes.findIndex((note) => note.id === noteId);
+    if (index < 0) return null;
+
+    const [removed] = this.state.notes.splice(index, 1);
+    await this.persist();
+    return removed;
   }
 
   async createNote(input) {
