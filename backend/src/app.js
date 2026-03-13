@@ -236,6 +236,15 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
   const voteRegistry = new Map();
   const reportRegistry = new Map();
   const lastPostByClient = new Map();
+  const serializeForClient = (note, req) => {
+    const payload = serializeNote(note, req);
+    const clientKey = getClientKey(req);
+    return {
+      ...payload,
+      clientVote: voteRegistry.get(note.id)?.get(clientKey) || null,
+      clientReported: reportRegistry.get(note.id)?.has(clientKey) || false
+    };
+  };
 
   app.use(cors());
   app.use(express.json({ limit: "1mb" }));
@@ -264,7 +273,7 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
 
     const notes = store.listNotes(mode)
       .filter((note) => !shouldHideNote(note))
-      .map((note) => serializeNote(note, req));
+      .map((note) => serializeForClient(note, req));
     return res.json({ ok: true, data: notes });
   });
 
@@ -273,7 +282,7 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
     if (!note) {
       return res.status(404).json({ ok: false, error: "note not found" });
     }
-    return res.json({ ok: true, data: serializeNote(note, req) });
+    return res.json({ ok: true, data: serializeForClient(note, req) });
   });
 
   app.post("/api/notes", upload.single("audio"), async (req, res, next) => {
@@ -307,7 +316,7 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
       lastPostByClient.set(clientKey, { lat, lng, timestamp: now });
 
       const created = await store.createNote(parsed.value);
-      return res.status(201).json({ ok: true, data: serializeNote(created, req) });
+      return res.status(201).json({ ok: true, data: serializeForClient(created, req) });
     } catch (error) {
       return next(error);
     }
@@ -317,7 +326,7 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
     const activeOnly = parseBoolean(req.query.active, true);
     const streams = store.listStreams(activeOnly)
       .filter((note) => !shouldHideNote(note))
-      .map((note) => serializeNote(note, req));
+      .map((note) => serializeForClient(note, req));
     return res.json({ ok: true, data: streams });
   });
 
@@ -352,7 +361,7 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
       lastPostByClient.set(clientKey, { lat, lng, timestamp: now });
 
       const stream = await store.startStream(parsed.value);
-      return res.status(201).json({ ok: true, data: serializeNote(stream, req) });
+      return res.status(201).json({ ok: true, data: serializeForClient(stream, req) });
     } catch (error) {
       return next(error);
     }
@@ -386,7 +395,7 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
         await fs.unlink(previousPath).catch(() => {});
       }
 
-      return res.json({ ok: true, data: serializeNote(updated, req) });
+      return res.json({ ok: true, data: serializeForClient(updated, req) });
     } catch (error) {
       return next(error);
     }
@@ -399,7 +408,7 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
       if (!updated) {
         return res.status(404).json({ ok: false, error: "stream not found" });
       }
-      return res.json({ ok: true, data: serializeNote(updated, req) });
+      return res.json({ ok: true, data: serializeForClient(updated, req) });
     } catch (error) {
       return next(error);
     }
@@ -411,7 +420,7 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
       if (!stopped) {
         return res.status(404).json({ ok: false, error: "stream not found" });
       }
-      return res.json({ ok: true, data: serializeNote(stopped, req) });
+      return res.json({ ok: true, data: serializeForClient(stopped, req) });
     } catch (error) {
       return next(error);
     }
@@ -434,10 +443,7 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
       const previousVote = votesForNote.get(clientKey);
 
       if (previousVote === voteType) {
-        return res.status(409).json({
-          ok: false,
-          error: "vote already submitted"
-        });
+        return res.json({ ok: true, data: serializeForClient(targetNote, req) });
       }
 
       if (previousVote) {
@@ -447,14 +453,14 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
       votesForNote.set(clientKey, voteType);
       voteRegistry.set(targetNote.id, votesForNote);
 
-      const updatedNote = await store.applyVote(req.params.id, voteType);
-      
+      let finalNote = await store.applyVote(req.params.id, voteType);
+
       // Auto-stop stream if 15% negative ratio reached
-      if (updatedNote.isStream && updatedNote.streamActive && shouldHideNote(updatedNote)) {
-        await store.stopStream(updatedNote.id);
+      if (finalNote.isStream && finalNote.streamActive && shouldHideNote(finalNote)) {
+        finalNote = await store.stopStream(finalNote.id) || finalNote;
       }
 
-      return res.json({ ok: true, data: serializeNote(updatedNote, req) });
+      return res.json({ ok: true, data: serializeForClient(finalNote, req) });
     } catch (error) {
       return next(error);
     }
@@ -479,14 +485,14 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
       reportsForNote.add(clientKey);
       reportRegistry.set(note.id, reportsForNote);
 
-      const reported = await store.reportNote(req.params.id);
+      let reported = await store.reportNote(req.params.id);
 
       // Auto-stop stream if 15% negative ratio reached
       if (reported.isStream && reported.streamActive && shouldHideNote(reported)) {
-        await store.stopStream(reported.id);
+        reported = await store.stopStream(reported.id) || reported;
       }
 
-      return res.json({ ok: true, data: serializeNote(reported, req) });
+      return res.json({ ok: true, data: serializeForClient(reported, req) });
     } catch (error) {
       return next(error);
     }
@@ -498,7 +504,7 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
       if (!note) {
         return res.status(404).json({ ok: false, error: "note not found" });
       }
-      return res.json({ ok: true, data: serializeNote(note, req) });
+      return res.json({ ok: true, data: serializeForClient(note, req) });
     } catch (error) {
       return next(error);
     }
