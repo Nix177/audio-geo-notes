@@ -1542,3 +1542,97 @@ footer {
         font-size: 1.35rem;
     }
 }
+
+
+.creation-menu {
+    position: absolute;
+    left: 50%;
+    bottom: 142px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 120;
+}
+
+.creation-bubble {
+    min-width: 92px;
+    height: 48px;
+    border: none;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #ff6b6b, #ff4757);
+    color: #170d10;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    box-shadow: 0 14px 26px rgba(255, 71, 87, 0.28);
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+
+.creation-bubble:hover,
+.creation-bubble:focus-visible {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 18px 34px rgba(255, 71, 87, 0.34);
+    filter: saturate(1.08);
+}
+
+.creation-bubble-audio {
+    transform: translateX(-26px);
+}
+
+.creation-bubble-live {
+    transform: translateX(24px);
+}
+
+.creation-bubble-audio:hover,
+.creation-bubble-audio:focus-visible {
+    transform: translateX(-26px) translateY(-2px) scale(1.03);
+}
+
+.creation-bubble-live:hover,
+.creation-bubble-live:focus-visible {
+    transform: translateX(24px) translateY(-2px) scale(1.03);
+}
+
+.btn-delete {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 107, 107, 0.5);
+    background: rgba(255, 71, 87, 0.12);
+    color: #ffd7db;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.btn-delete:hover,
+.btn-delete:focus-visible {
+    background: rgba(255, 71, 87, 0.2);
+    border-color: rgba(255, 107, 107, 0.8);
+    transform: translateY(-1px);
+}
+
+.bubble-shell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.bubble-pointer {
+    width: 0;
+    height: 0;
+    margin-top: -2px;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 12px solid;
+}
+
+.speaker-shell-pin {
+    transform: scale(1.1);
+}
+
+.bubble-mini-highlight {
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.25), 0 10px 24px rgba(99, 140, 255, 0.32), 0 0 18px rgba(155, 190, 255, 0.26);
+    filter: brightness(1.08) saturate(1.08);
+}

@@ -62,18 +62,14 @@
                     <span>👁️ <span id="modal-plays">128</span></span>
                 </div>
             </div>
-            <div class="modal-moderation">
-                <span>Score visible: <strong id="modal-score">0</strong></span>
-                <span>Downvotes visibles: <strong id="modal-downvotes">0</strong></span>
-                <span>Reports: <strong id="modal-reports">0</strong></span>
-            </div>
             <p class="moderation-status" id="modal-status">Contenu normal</p>
             <div class="modal-actions">
-                <button class="btn-like" id="btn-like">Like</button>
-                <button class="btn-dislike" id="btn-dislike">Downvote</button>
+                <button class="btn-like" id="btn-like">▲ Like</button>
+                <button class="btn-dislike" id="btn-dislike">▼ Dislike</button>
                 <button class="btn-share" id="btn-share">Partager</button>
             </div>
-            <button class="btn-report" id="btn-report">Reporter ce contenu</button>
+            <button class="btn-delete hidden" id="btn-delete">Supprimer</button>
+            <button class="btn-report" id="btn-report">Signaler</button>
         </div>
     </div>
 
@@ -81,8 +77,8 @@
     <div id="composer-modal" class="modal hidden">
         <div class="modal-content composer-content">
             <button class="modal-close" id="composer-close">&times;</button>
-            <h3>Publier un son géolocalisé</h3>
-            <p class="composer-subtitle">Créez une capsule audio communautaire ou démarrez un live.</p>
+            <h3 id="composer-heading">Publier un son geolocalise</h3>
+            <p class="composer-subtitle" id="composer-subtitle">Creez une capsule audio locale sans surcharger la carte.</p>
 
             <label class="composer-label" for="composer-title">Titre</label>
             <input id="composer-title" class="composer-input" type="text" maxlength="80"
@@ -112,8 +108,8 @@
             </div>
 
             <div class="composer-actions">
-                <button id="composer-publish" class="composer-btn primary">Publier capsule</button>
-                <button id="composer-start-live" class="composer-btn live">Démarrer live</button>
+                <button id="composer-publish" class="composer-btn primary">Publier</button>
+                <button id="composer-start-live" class="composer-btn live">Go Live</button>
                 <button id="composer-stop-live" class="composer-btn stop" disabled>Stop live</button>
             </div>
         </div>
@@ -166,6 +162,10 @@
                         <span class="record-icon">🎙️</span>
                         <span class="record-text">Publier</span>
                     </button>
+                    <div class="creation-menu hidden" id="creation-menu">
+                        <button class="creation-bubble creation-bubble-audio" id="create-audio" type="button">Audio</button>
+                        <button class="creation-bubble creation-bubble-live" id="create-live" type="button">Live</button>
+                    </div>
 
                     <div class="audio-badge">
                         <span class="audio-wave">
