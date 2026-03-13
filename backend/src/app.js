@@ -443,7 +443,15 @@ function createApp({ store, uploadsDir, abuseConfig = {} }) {
       const previousVote = votesForNote.get(clientKey);
 
       if (previousVote === voteType) {
-        return res.json({ ok: true, data: serializeForClient(targetNote, req) });
+        await store.removeVote(targetNote.id, previousVote);
+        votesForNote.delete(clientKey);
+        if (votesForNote.size) {
+          voteRegistry.set(targetNote.id, votesForNote);
+        } else {
+          voteRegistry.delete(targetNote.id);
+        }
+        const updated = store.getNoteById(req.params.id) || targetNote;
+        return res.json({ ok: true, data: serializeForClient(updated, req) });
       }
 
       if (previousVote) {
