@@ -15,14 +15,18 @@ const clip={mic:null,rec:null,chunks:[],blob:null,mime:"",on:false};
 const live={id:null,mic:null,rec:null,hb:null,q:Promise.resolve()};
 
 const $=(id)=>document.getElementById(id);
+const mockup=document.querySelector(".mockup");
+const menuBtn=$("app-menu"),menuPanel=$("app-menu-panel");
+const quickExplore=document.createElement("div");quickExplore.className="quick-explore";quickExplore.innerHTML="<button id=\"quick-nearby\" type=\"button\">Centrer</button><button id=\"quick-live\" type=\"button\">Live</button>";if(mockup&&!mockup.querySelector(".quick-explore"))mockup.appendChild(quickExplore);
 const toast=(m,t="info")=>{const c=$("toast-container");if(!c)return;const e=document.createElement("div");e.className=`toast ${t}`;e.innerHTML=`<span>${t==="success"?"OK":t==="live"?"LIVE":"INFO"}</span> ${m}`;c.appendChild(e);setTimeout(()=>{e.style.opacity="0";setTimeout(()=>e.remove(),250);},3000);};
 const setApi=(ok,silent=false)=>{apiOnline=ok;if(ok){offlineToast=false;if(!onlineToast&&!silent){toast("Backend connecte","success");onlineToast=true;}}else{onlineToast=false;if(!offlineToast&&!silent){toast("Backend indisponible","info");offlineToast=true;}}};
 async function req(path,opt={}){const o={method:opt.method||"GET",headers:{...(opt.headers||{})}};if(opt.body!==undefined){if(opt.body instanceof FormData)o.body=opt.body;else{o.headers["content-type"]="application/json";o.body=JSON.stringify(opt.body);}}let lastErr=null;for(const base of apiCandidates){try{const r=await fetch(`${base}${path}`,o);apiBase=base;const p=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(p.error||`HTTP ${r.status}`);e.status=r.status;throw e;}return p.data;}catch(err){lastErr=err;if(err&&typeof err.status==="number"&&err.status>0)throw err;}}const e=new Error(`Backend indisponible (${apiBase}). Ouvrez ${`http://${hostName}:4000/api/health`}`);e.status=0;e.network=true;e.cause=lastErr;throw e;}
-const nrm=(n)=>({id:n.id||`local_${Date.now()}`,title:n.title||"Note",description:n.description||"",category:n.category||"Communaute",icon:n.icon||"A",type:n.type||"story",author:n.author||"Anonyme",duration:Number.isFinite(+n.duration)?Math.max(5,+n.duration):120,isLive:!!n.isLive,isStream:!!n.isStream,streamActive:!!n.streamActive,lat:Number.isFinite(+n.lat)?+n.lat:null,lng:Number.isFinite(+n.lng)?+n.lng:null,likes:Number.isFinite(+n.likes)?+n.likes:0,downvotes:Number.isFinite(+n.downvotes)?+n.downvotes:0,reports:Number.isFinite(+n.reports)?+n.reports:0,plays:Number.isFinite(+n.plays)?+n.plays:0,listeners:Number.isFinite(+n.listeners)?+n.listeners:0,audioUrl:typeof n.audioUrl==="string"?n.audioUrl:null});
-const upsert=(u)=>{const m=nrm(u);notes=[m,...notes.filter(x=>x.id!==m.id)];return m;};
+const nrm=(n)=>({id:n.id||`local_${Date.now()}`,title:n.title||"Note",description:n.description||"",category:n.category||"Communaute",icon:n.icon||"A",type:n.type||"story",author:n.author||"Anonyme",duration:Number.isFinite(+n.duration)?Math.max(5,+n.duration):120,isLive:!!n.isLive,isStream:!!n.isStream,streamActive:!!n.streamActive,lat:Number.isFinite(+n.lat)?+n.lat:null,lng:Number.isFinite(+n.lng)?+n.lng:null,likes:Number.isFinite(+n.likes)?+n.likes:0,downvotes:Number.isFinite(+n.downvotes)?+n.downvotes:0,reports:Number.isFinite(+n.reports)?+n.reports:0,plays:Number.isFinite(+n.plays)?+n.plays:0,listeners:Number.isFinite(+n.listeners)?+n.listeners:0,audioUrl:typeof n.audioUrl==="string"?n.audioUrl:null,clientVote:n.clientVote==="like"||n.clientVote==="dislike"?n.clientVote:null});
+const upsert=(u)=>{const m=nrm(u);if(m.clientVote)votes[m.id]=m.clientVote;else delete votes[m.id];notes=[m,...notes.filter(x=>x.id!==m.id)];return m;};
 const score=(n)=>n.likes-n.downvotes-n.reports*2;
 const status=(n)=>n.reports>=4||score(n)<=-10?{t:"Contenu sous revue",c:"critical"}:n.reports>=2||score(n)<20?{t:"Visibilite reduite",c:"warning"}:{t:"Contenu normal",c:"ok"};
 const ftime=(s)=>{const v=Math.max(0,Math.round(+s||0));return`${Math.floor(v/60)}:${String(v%60).padStart(2,"0")}`;};
+const pickLiveNote=()=>notes.filter((n)=>n.isLive&&Number.isFinite(n.lat)&&Number.isFinite(n.lng)).sort((a,b)=>(b.listeners||0)-(a.listeners||0)||(b.plays||0)-(a.plays||0)||score(b)-score(a))[0]||null;
 
 const map=L.map("map",{zoomControl:false,attributionControl:false}).setView([pos.lat,pos.lng],16);
 L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{maxZoom:20}).addTo(map);
@@ -40,30 +44,80 @@ async function captureGps({setView=false}={}){if(!navigator.geolocation){throw n
 map.locate({setView:true,maxZoom:16});
 map.on("locationfound",(ev)=>{setGeo(ev.latlng.lat,ev.latlng.lng,ev.accuracy,Date.now());renderUser();if(!pinChosen)setPin(ev.latlng.lat,ev.latlng.lng,false);$("location-name").textContent="Votre position";});
 map.on("locationerror",()=>{const c=map.getCenter();$("location-name").textContent="Paris centre";zone(c.lat,c.lng);if(!pinChosen)setPin(c.lat,c.lng,false);compPos();});
-map.on("click",(ev)=>{toast("Carte cliquée", "info");});
+map.on("click",()=>{if(menuOpen){menuOpen=false;menuUI();}});
 map.on("moveend",()=>{const c=map.getCenter();zone(c.lat,c.lng);refresh();});
 
 const modeLabel=$("mode-label"),modeBtn=$("mode-toggle");
 const modeUI=(fb=false)=>{if(mode==="live"){modeLabel.textContent="LIVE";modeLabel.classList.add("live");if(fb)toast("Mode live","live");}else{modeLabel.textContent="Archive";modeLabel.classList.remove("live");if(fb)toast("Mode archive","info");}};
 if(modeBtn)modeBtn.addEventListener("click",()=>{mode=mode==="archive"?"live":"archive";modeUI(true);refresh();void load(false);});
+let menuOpen=false;
+function menuUI(){if(menuPanel)menuPanel.classList.toggle("hidden",!menuOpen);if(menuBtn)menuBtn.setAttribute("aria-expanded",menuOpen?"true":"false");}
+if(menuPanel)menuPanel.innerHTML="<strong>Menu</strong><span>Centrer vous replace sur votre position.</span><span>Live ouvre le direct le plus pertinent visible.</span><span>Esc ferme la fiche ou le panneau actif.</span>";
+if(menuBtn)menuBtn.addEventListener("click",(ev)=>{ev.stopPropagation();menuOpen=!menuOpen;menuUI();});
+document.addEventListener("click",(ev)=>{if(!menuOpen)return;if(menuPanel?.contains(ev.target)||menuBtn?.contains(ev.target))return;menuOpen=false;menuUI();});
 
-const modal=$("audio-modal"),mClose=$("modal-close"),mTitle=$("modal-title"),mAuthor=$("modal-author"),mCat=$("modal-category"),mIcon=$("modal-icon"),mLive=$("modal-live"),mDesc=$("modal-description"),mAudio=$("modal-audio"),mNoAudio=$("modal-audio-empty"),mLikes=$("modal-likes"),mPlays=$("modal-plays"),mTime=$("modal-time"),mScore=$("modal-score"),mDown=$("modal-downvotes"),mRep=$("modal-reports"),mStatus=$("modal-status");
-const bLike=$("btn-like"),bDis=$("btn-dislike"),bShare=$("btn-share"),bRep=$("btn-report");
+const modal=$("audio-modal"),mClose=$("modal-close"),mTitle=$("modal-title"),mAuthor=$("modal-author"),mCat=$("modal-category"),mIcon=$("modal-icon"),mLive=$("modal-live"),mDesc=$("modal-description"),mAudio=$("modal-audio"),mNoAudio=$("modal-audio-empty"),mLikes=$("modal-likes"),mPlays=$("modal-plays"),mTime=$("modal-time"),mStatus=$("modal-status");
+const bLike=$("btn-like"),bDis=$("btn-dislike"),bShare=$("btn-share"),bRep=$("btn-report"),quickNearby=$("quick-nearby"),quickLive=$("quick-live");
+const modalModeration=document.querySelector("#audio-modal .modal-moderation");
+const modalHeaderMain=mTitle?.parentElement||null;
+const modalMetaRow=mAuthor?.parentElement||null;
+const modalHeaderWrap=modalHeaderMain?.parentElement||null;
+const modalControlsWrap=document.querySelector("#audio-modal .modal-controls");
+const modalActionsWrap=document.querySelector("#audio-modal .modal-actions");
+if(modalHeaderMain)modalHeaderMain.classList.add("modal-header-main");
+if(modalMetaRow)modalMetaRow.classList.add("modal-meta-row");
+if(modalHeaderWrap&&!modalHeaderWrap.querySelector(".modal-shortcuts")){
+  const hint=document.createElement("div");
+  hint.className="modal-shortcuts";
+  hint.textContent="Esc pour fermer";
+  modalHeaderWrap.appendChild(hint);
+}
+if(modalModeration)modalModeration.style.display="none";
+if(bDis)bDis.textContent="Dislike";
+if(bRep)bRep.textContent="Signaler";
+function ensureModalLabel(target,text){
+  if(!target)return;
+  target.classList.add("modal-block");
+  const prev=target.previousElementSibling;
+  if(prev&&prev.classList.contains("modal-block-label"))return;
+  const label=document.createElement("div");
+  label.className="modal-block-label";
+  label.textContent=text;
+  target.parentNode?.insertBefore(label,target);
+}
+if(mDesc)ensureModalLabel(mDesc,"Description");
+if(mAudio)ensureModalLabel(mAudio,"Lecture");
+if(modalControlsWrap){
+  ensureModalLabel(modalControlsWrap,"Infos");
+  const timeNode=mTime?.parentElement===modalControlsWrap?mTime:null;
+  const statsNode=document.querySelector("#audio-modal .modal-stats");
+  if(timeNode&&statsNode&&!modalControlsWrap.querySelector(".modal-control-row")){
+    const row=document.createElement("div");
+    row.className="modal-control-row";
+    modalControlsWrap.insertBefore(row,timeNode);
+    row.appendChild(timeNode);
+    row.appendChild(statsNode);
+  }
+}
+if(modalActionsWrap)ensureModalLabel(modalActionsWrap,"Actions");
 function wave(l){const cv=$("waveform");if(!cv)return;const x=cv.getContext("2d");x.clearRect(0,0,cv.width,cv.height);const c=l?"#ff4757":"#ff6b81";for(let i=0;i<34;i++){const h=Math.random()*35+8,y=(cv.height-h)/2,b=cv.width/34;x.fillStyle=i<12?c:`${c}55`;x.fillRect(i*b+1,y,b-2,h);}}
-function voteUI(){if(!current)return;const v=votes[current.id],r=reports.has(current.id);bLike.textContent=v==="like"?"Like OK":"Like";bDis.textContent=v==="dislike"?"Downvote OK":"Downvote";bLike.classList.toggle("active",v==="like");bDis.classList.toggle("active",v==="dislike");bLike.disabled=!!v;bDis.disabled=!!v;bRep.disabled=r;bRep.textContent=r?"Signale":"Reporter ce contenu";}
-function drawModal(n){mTitle.textContent=n.title;mAuthor.textContent=`Par ${n.author}`;mCat.textContent=n.category;mIcon.textContent=n.icon;mDesc.textContent=n.description||"Aucune description.";mLikes.textContent=String(n.likes);mPlays.textContent=String(n.plays);mTime.textContent=`0:00 / ${ftime(n.duration)}`;mScore.textContent=String(score(n));mDown.textContent=String(n.downvotes);mRep.textContent=String(n.reports);const s=status(n);mStatus.textContent=s.t;mStatus.classList.remove("ok","warning","critical");mStatus.classList.add(s.c);if(n.isLive){mLive.classList.remove("hidden");mLive.textContent=`${n.isStream&&n.streamActive?"LIVE STREAM":"LIVE"} - ${n.listeners} auditeurs`;}else mLive.classList.add("hidden");if(n.audioUrl){if((mAudio.getAttribute("src")||"")!==n.audioUrl){mAudio.setAttribute("src",n.audioUrl);mAudio.load();}mAudio.classList.remove("hidden");mNoAudio.classList.add("hidden");}else{mAudio.pause();mAudio.removeAttribute("src");mAudio.load();mAudio.classList.add("hidden");mNoAudio.classList.remove("hidden");}wave(n.isLive);voteUI();}
+function voteUI(){if(!current)return;const v=votes[current.id],r=reports.has(current.id);bLike.classList.toggle("active",v==="like");bDis.classList.toggle("active",v==="dislike");bLike.setAttribute("aria-pressed",v==="like"?"true":"false");bDis.setAttribute("aria-pressed",v==="dislike"?"true":"false");bLike.title=v==="like"?"Retirer le like":"Ajouter un like";bDis.title=v==="dislike"?"Retirer le dislike":"Ajouter un dislike";bRep.disabled=r;bRep.textContent=r?"Signale":"Signaler";}
+function drawModal(n){mTitle.textContent=n.title;mAuthor.textContent=`Par ${n.author}`;mCat.textContent=n.category;mIcon.textContent=n.icon;mDesc.textContent=n.description||"Aucune description.";mLikes.textContent=String(n.likes);mPlays.textContent=String(n.plays);mTime.textContent=`0:00 / ${ftime(n.duration)}`;const s=status(n);mStatus.textContent=s.t;mStatus.classList.remove("ok","warning","critical");mStatus.classList.add(s.c);if(n.isLive){mLive.classList.remove("hidden");mLive.textContent=`${n.isStream&&n.streamActive?"LIVE STREAM":"LIVE"} - ${n.listeners} auditeurs`;}else mLive.classList.add("hidden");if(n.audioUrl){if((mAudio.getAttribute("src")||"")!==n.audioUrl){mAudio.setAttribute("src",n.audioUrl);mAudio.load();}mAudio.classList.remove("hidden");mNoAudio.classList.add("hidden");}else{mAudio.pause();mAudio.removeAttribute("src");mAudio.load();mAudio.classList.add("hidden");mNoAudio.classList.remove("hidden");}wave(n.isLive);voteUI();}
 function stopLiveRefresh(){if(liveTimer){clearInterval(liveTimer);liveTimer=null;}}
 function startLiveRefresh(id){stopLiveRefresh();liveTimer=setInterval(async()=>{if(!current||current.id!==id)return;try{const u=upsert(await req(`/api/notes/${id}`));if(current&&current.id===u.id){current=u;drawModal(u);}refresh();}catch(_e){}},5000);}
 async function openModal(n){current=n;drawModal(n);modal.classList.remove("hidden");try{const p=upsert(await req(`/api/notes/${n.id}/play`,{method:"POST"}));current=p;drawModal(p);refresh();}catch(_e){}if(n.isLive&&n.streamActive)startLiveRefresh(n.id);}
 function closeModal(){stopLiveRefresh();modal.classList.add("hidden");mAudio.pause();current=null;}
 if(mClose)mClose.addEventListener("click",closeModal);
 if(modal)modal.addEventListener("click",(e)=>{if(e.target===modal)closeModal();});
-async function doVote(type){if(!current)return;if(votes[current.id]){toast("Vote deja enregistre","info");return;}votes[current.id]=type;if(type==="like")current.likes+=1;else current.downvotes+=1;drawModal(current);refresh();try{current=upsert(await req(`/api/notes/${current.id}/votes`,{method:"POST",body:{type}}));drawModal(current);refresh();}catch(_e){toast("Vote local conserve","info");}}
+document.addEventListener("keydown",(e)=>{if(e.key!=="Escape")return;if(modal&&!modal.classList.contains("hidden")){closeModal();return;}if(cModal&&!cModal.classList.contains("hidden")){cHide();}});
+async function doVote(type){if(!current)return;const prev=votes[current.id]||null;const next=prev===type?null:type;if(prev==="like")current.likes=Math.max(0,(current.likes||0)-1);if(prev==="dislike")current.downvotes=Math.max(0,(current.downvotes||0)-1);if(next==="like")current.likes=(current.likes||0)+1;if(next==="dislike")current.downvotes=(current.downvotes||0)+1;if(next)votes[current.id]=next;else delete votes[current.id];drawModal(current);refresh();try{current=upsert(await req(`/api/notes/${current.id}/votes`,{method:"POST",body:{type}}));drawModal(current);refresh();}catch(_e){toast("Vote local conserve","info");}}
 async function doReport(){if(!current)return;if(reports.has(current.id)){toast("Signalement deja envoye","info");return;}reports.add(current.id);current.reports+=1;drawModal(current);refresh();try{current=upsert(await req(`/api/notes/${current.id}/report`,{method:"POST"}));drawModal(current);refresh();}catch(_e){toast("Signalement local conserve","info");}}
 if(bLike)bLike.addEventListener("click",()=>void doVote("like"));
 if(bDis)bDis.addEventListener("click",()=>void doVote("dislike"));
 if(bRep)bRep.addEventListener("click",()=>void doReport());
 if(bShare)bShare.addEventListener("click",async()=>{const t=current?`${window.location.href}#note=${encodeURIComponent(current.id)}`:window.location.href;try{if(!navigator.clipboard?.writeText)throw new Error("clip");await navigator.clipboard.writeText(t);toast("Lien copie","success");}catch(_e){toast("Copie impossible","info");}});
+if(quickNearby)quickNearby.addEventListener("click",()=>{menuOpen=false;menuUI();map.flyTo([pos.lat,pos.lng],Math.max(map.getZoom(),16));});
+if(quickLive)quickLive.addEventListener("click",()=>{menuOpen=false;menuUI();const liveNote=pickLiveNote();if(!liveNote){toast("Aucun live pour le moment","info");return;}map.flyTo([liveNote.lat,liveNote.lng],Math.max(map.getZoom(),16));void openModal(liveNote);});
 
 const cModal=$("composer-modal"),cClose=$("composer-close"),cTitle=$("composer-title"),cDesc=$("composer-description"),cAuthor=$("composer-author"),cUse=$("composer-use-map"),cGeoGps=$("composer-geo-gps"),cGeoPin=$("composer-geo-pin"),cHint=$("composer-location-hint"),cRec=$("composer-record-toggle"),cRecStatus=$("composer-record-status"),cPub=$("composer-publish"),cStart=$("composer-start-live"),cStop=$("composer-stop-live"),launcher=$("record-btn");
 function geoModeUI(){if(cGeoGps)cGeoGps.style.display="none";if(cGeoPin)cGeoPin.style.display="none";if(cUse)cUse.textContent="Mettre a jour GPS";if(cHint)cHint.textContent="Votre publication prendra votre position GPS actuelle. Restez fair-play !";}
@@ -127,7 +181,7 @@ function icon(n) {
     className: "custom-bubble-mini",
     html: `<div style="transform: scale(${scale}); opacity: ${opacity}; display: flex; flex-direction: column; align-items: center;">
              <div class="bubble-mini ${p}" style="width:${baseSize}px;height:${baseSize}px;border-color:${b};background:${bg}; border-width: 2px;">
-               <span class="bubble-icon" style="font-size: ${baseSize/2.5}px;">🎵</span>
+               <span class="bubble-icon" style="font-size: ${baseSize/2.5}px;">??</span>
                ${dot}
              </div>
              <div style="width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 12px solid ${b}; margin-top: -2px;"></div>
@@ -137,17 +191,23 @@ function icon(n) {
   });
 }
 const clear=()=>{layer.clearLayers();marks=[];};
-const close=(c)=>marks.some((m)=>Math.hypot(m.coords[0]-c[0],m.coords[1]-c[1])<0.00028);
-function add(n){const b=map.getBounds(),ok=Number.isFinite(n.lat)&&Number.isFinite(n.lng),lat=ok?n.lat:b.getSouth()+Math.random()*(b.getNorth()-b.getSouth()),lng=ok?n.lng:b.getWest()+Math.random()*(b.getEast()-b.getWest());if(close([lat,lng])&&marks.length>4)return;const mk=L.marker([lat,lng],{icon:icon(n)});mk.on("click",()=>void openModal(n));mk.addTo(layer);marks.push({coords:[lat,lng],marker:mk});}
-function refresh(){clear();const f=notes.filter((n)=>mode==="live"?n.isLive:!n.isLive),max=mode==="live"?8:12;f.slice(0,max).forEach(add);}
+function clusterIcon(cluster){return L.divIcon({className:"custom-bubble-mini",html:`<div class="cluster-pin"><div class="cluster-half archive"><strong>${cluster.archiveCount}</strong><span>sons</span></div><div class="cluster-half live"><strong>${cluster.liveCount}</strong><span>live</span></div></div><div class="cluster-pointer"></div>`,iconSize:[78,54],iconAnchor:[39,54]});}
+function clusterEntries(items){const b=map.getBounds(),zoom=map.getZoom(),divisor=zoom<13?4.5:zoom<15?6.2:8,latStep=Math.max((b.getNorth()-b.getSouth())/divisor,0.0011),lngStep=Math.max((b.getEast()-b.getWest())/divisor,0.0011),buckets=new Map();items.filter((n)=>Number.isFinite(n.lat)&&Number.isFinite(n.lng)).forEach((n)=>{const key=`${Math.round(n.lat/latStep)}:${Math.round(n.lng/lngStep)}`;const bucket=buckets.get(key)||[];bucket.push(n);buckets.set(key,bucket);});return Array.from(buckets.values()).map((group,index)=>{if(group.length===1)return{type:"note",note:group[0]};const lat=group.reduce((sum,n)=>sum+n.lat,0)/group.length,lng=group.reduce((sum,n)=>sum+n.lng,0)/group.length,liveCount=group.filter((n)=>n.isLive).length;return{type:"cluster",id:`cluster-${index}-${group[0].id}`,lat,lng,archiveCount:group.length-liveCount,liveCount};});}
+function addEntry(entry){if(entry.type==="cluster"){const mk=L.marker([entry.lat,entry.lng],{icon:clusterIcon(entry)});mk.on("click",()=>map.flyTo([entry.lat,entry.lng],Math.min(map.getZoom()+2,19)));mk.addTo(layer);marks.push(mk);return;}const n=entry.note,mk=L.marker([n.lat,n.lng],{icon:icon(n)});mk.on("click",()=>void openModal(n));mk.addTo(layer);marks.push(mk);}
+function refresh(){clear();const center=map.getCenter();const max=map.getZoom()<14?18:28;const prioritized=notes.filter((n)=>Number.isFinite(n.lat)&&Number.isFinite(n.lng)).slice().sort((a,b)=>Number(b.isLive)-Number(a.isLive)||score(b)-score(a)||(b.plays||0)-(a.plays||0)||((Math.abs(a.lat-center.lat)+Math.abs(a.lng-center.lng))-(Math.abs(b.lat-center.lat)+Math.abs(b.lng-center.lng)))).slice(0,max);clusterEntries(prioritized).forEach(addEntry);}
 
 const fallback=[nrm({id:"fallback_archive_1",title:"Capsule locale demo",description:"Backend offline.",category:"Communaute",icon:"AUDIO",type:"story",author:"Demo",duration:120,isLive:false,isStream:false,streamActive:false,lat:48.857,lng:2.353,likes:10,downvotes:1,reports:0,plays:32,listeners:0,audioUrl:null})];
-async function load(silent=false){try{const data=await req(`/api/notes?mode=${mode==="live"?"live":"archive"}`);notes=data.map(nrm);refresh();setApi(true,silent);}catch(_e){if(notes.length===0){notes=fallback.slice();refresh();}setApi(false,silent);}}
+async function load(silent=false){try{const [archiveData,liveData]=await Promise.all([req("/api/notes?mode=archive"),req("/api/streams?active=true")]);const merged=[...liveData,...archiveData].map(nrm);Object.keys(votes).forEach((key)=>delete votes[key]);merged.forEach((n)=>{if(n.clientVote)votes[n.id]=n.clientVote;});notes=Array.from(new Map(merged.map((n)=>[n.id,n])).values());refresh();setApi(true,silent);}catch(_e){if(notes.length===0){notes=fallback.slice();refresh();}setApi(false,silent);}}
 
 function anim(el,s,e,d){const r=e-s,t=performance.now();function u(now){const p=Math.min((now-t)/d,1),q=1-Math.pow(1-p,3),v=Math.floor(s+r*q);el.textContent=`${v.toLocaleString()}${el.dataset.target==="85"?"%":"+"}`;if(p<1)requestAnimationFrame(u);}requestAnimationFrame(u);}
 function stats(){const els=document.querySelectorAll(".stat-number");const ob=new IntersectionObserver((en)=>{en.forEach((e)=>{if(!e.isIntersecting)return;anim(e.target,0,parseInt(e.target.dataset.target,10),2000);ob.unobserve(e.target);});},{threshold:.4});els.forEach((x)=>ob.observe(x));}
 document.querySelectorAll("a[href^='#']").forEach((a)=>a.addEventListener("click",function(ev){ev.preventDefault();const t=document.querySelector(this.getAttribute("href"));if(t)t.scrollIntoView({behavior:"smooth",block:"start"});}));
 
-modeUI(false);geoModeUI();recUI();liveUI();compPos();zone(pos.lat,pos.lng);stats();void load(false);setInterval(()=>void load(true),POLL_MS);setTimeout(()=>toast("Cliquez sur une bulle pour ecouter","info"),700);
+modeUI(false);geoModeUI();recUI();liveUI();compPos();zone(pos.lat,pos.lng);stats();void load(false);setInterval(()=>void load(true),POLL_MS);setTimeout(()=>toast("Carte mixte active. Zoomez puis touchez un son.","info"),700);
 window.addEventListener("beforeunload",()=>{stopLiveRefresh();if(live.id)void stopLive(true);freeClip();});
 });
+
+
+
+
+
