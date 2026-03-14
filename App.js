@@ -71,25 +71,25 @@ function getMarkerVisuals(note) {
   const negativeWeight = (note.downvotes || 0) + ((note.reports || 0) * 2);
   const positiveWeight = note.likes || 0;
   const totalWeight = positiveWeight + negativeWeight;
-  let scale = note.isLive ? 1.05 : 1;
+  let scale = note.isLive ? 1.08 : 1;
   let opacity = 1;
   let color = note.isLive ? "#ff4757" : "#4f7cff";
   let tone = note.isLive ? "#fff7f8" : "#f7fbff";
-  let glow = 0;
+  let glow = note.isLive ? 0.16 : 0;
 
   if (totalWeight >= 3) {
     const ratio = (positiveWeight - negativeWeight) / totalWeight;
     if (ratio >= 0) {
-      scale += Math.min(ratio * 0.5, 0.5);
+      scale += Math.min(ratio * 0.55, 0.55);
       if (!note.isLive) {
-        glow = Math.max(0, Math.min(1, (ratio - 0.38) / 0.4));
+        glow = Math.max(0, Math.min(1, (ratio - 0.28) / 0.42));
         if (glow > 0) {
-          color = glow > 0.72 ? "#86abff" : "#6f98ff";
+          color = glow > 0.72 ? "#9dbdff" : "#78a2ff";
           tone = "#ffffff";
         }
       }
     } else {
-      opacity = Math.max(0.18, 1 + (ratio * 1.5));
+      opacity = Math.max(0.2, 1 + (ratio * 1.55));
     }
   }
 
@@ -115,6 +115,7 @@ function getNoteLabels(note) {
   const totalWeight = positiveWeight + negativeWeight;
 
   if (note.isLive) labels.push({ text: 'Live', tone: 'live' });
+  if (!note.isLive && totalWeight <= 1 && (note.plays || 0) <= 2) labels.push({ text: 'Nouveau', tone: 'fresh' });
   if ((note.plays || 0) >= 30 || totalWeight >= 8) labels.push({ text: 'Tres ecoute', tone: 'popular' });
   if ((note.likes || 0) >= 4 || getScore(note) >= 5) labels.push({ text: 'Apprecie', tone: 'liked' });
   if (negativeWeight >= 3 && negativeWeight > positiveWeight) labels.push({ text: 'Controverse', tone: 'warning' });
@@ -458,6 +459,81 @@ const livePulseStyles = StyleSheet.create({
     backgroundColor: "transparent"
   }
 });
+
+function FloatingSurface({ children, style, visible = true, delay = 0 }) {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(progress, {
+      toValue: visible ? 1 : 0,
+      duration: visible ? 220 : 160,
+      delay,
+      useNativeDriver: true
+    }).start();
+  }, [delay, progress, visible]);
+
+  return (
+    <Animated.View
+      style={[
+        style,
+        {
+          opacity: progress,
+          transform: [
+            { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) },
+            { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) }
+          ]
+        }
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+function MiniPlayerWave({ active = false, color = "#ff8a97" }) {
+  const wave = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!active) {
+      wave.stopAnimation();
+      wave.setValue(0);
+      return undefined;
+    }
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(wave, { toValue: 1, duration: 380, useNativeDriver: true }),
+        Animated.timing(wave, { toValue: 0, duration: 380, useNativeDriver: true })
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [active, wave]);
+
+  return (
+    <View style={miniWaveStyles.row}>
+      {[0, 1, 2].map((index) => {
+        const scaleY = active
+          ? wave.interpolate({
+            inputRange: [0, 0.5, 1],
+            outputRange:
+              index === 1 ? [0.7, 1.22, 0.7] : index === 0 ? [0.58, 1, 0.58] : [0.48, 0.84, 0.48]
+          })
+          : 1;
+        return (
+          <Animated.View
+            key={index}
+            style={[miniWaveStyles.bar, { backgroundColor: color, transform: [{ scaleY }] }]}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
+const miniWaveStyles = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "flex-end", gap: 3, marginRight: 10 },
+  bar: { width: 3, height: 16, borderRadius: 999, opacity: 0.95 }
+});
 export default function App() {
   const [apiBase] = useState(DEFAULT_API);
   const [notes, setNotes] = useState([]);
@@ -518,6 +594,7 @@ export default function App() {
     streamId: "",
     chunkRecording: null
   });
+  const fabProgress = useRef(new Animated.Value(0)).current;
   const ensureClientId = useCallback(async () => {
     if (clientIdRef.current) return clientIdRef.current;
     const baseUri = FileSystem.documentDirectory || FileSystem.cacheDirectory;
@@ -768,12 +845,34 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    Animated.spring(fabProgress, {
+      toValue: creationMenuOpen ? 1 : 0,
+      stiffness: 260,
+      damping: 18,
+      mass: 0.8,
+      useNativeDriver: true
+    }).start();
+  }, [creationMenuOpen, fabProgress]);
+
   const mapNotes = useMemo(
     () =>
       notes
         .filter((entry) => Number.isFinite(entry.lat) && Number.isFinite(entry.lng))
-        .map((entry) => ({ ...entry, ...getMarkerVisuals(entry) })),
-    [notes]
+        .map((entry) => {
+          const visuals = getMarkerVisuals(entry);
+          const isFocused = entry.id === selectedNoteId || entry.id === playingId;
+          const hasFocus = Boolean(selectedNoteId || playingId);
+
+          return {
+            ...entry,
+            ...visuals,
+            markerScale: isFocused ? visuals.markerScale + 0.12 : visuals.markerScale,
+            markerOpacity: hasFocus && !isFocused ? Math.max(0.24, visuals.markerOpacity * 0.62) : visuals.markerOpacity,
+            markerGlow: isFocused ? Math.min(1, visuals.markerGlow + 0.22) : visuals.markerGlow
+          };
+        }),
+    [notes, playingId, selectedNoteId]
   );
   const selectedNote = useMemo(
     () => notes.find((entry) => entry.id === selectedNoteId) || null,
@@ -1711,7 +1810,11 @@ export default function App() {
           </View>
         ) : null}
         {!composerOpen && error ? <View style={styles.errorBanner}><Text style={styles.errorText}>{error}</Text></View> : null}
-        {successMsg ? <View style={styles.successBanner}><Text style={styles.successText}>{successMsg}</Text></View> : null}
+        {successMsg ? (
+          <FloatingSurface style={styles.successBanner} delay={40}>
+            <Text style={styles.successText}>{successMsg}</Text>
+          </FloatingSurface>
+        ) : null}
       </SafeAreaView>
 
       <KeyboardAvoidingView
@@ -1873,7 +1976,7 @@ export default function App() {
 
         {showNoteDetails && selectedNote && !composerOpen ? (
           showExpandedDetails ? (
-            <View style={[styles.panel, styles.expandedDetailsCard]}>
+            <FloatingSurface style={[styles.panel, styles.expandedDetailsCard]} delay={35}>
               <View style={styles.panelHeader}>
                 <Pressable style={styles.secondaryActionBtn} onPress={() => setShowExpandedDetails(false)}>
                   <Text style={styles.secondaryActionText}>Retour</Text>
@@ -1973,9 +2076,9 @@ export default function App() {
                   </View>
                 </View>
               </ScrollView>
-            </View>
+            </FloatingSurface>
           ) : (
-            <View style={[styles.panel, styles.miniDetailsCard]}>
+            <FloatingSurface style={[styles.panel, styles.miniDetailsCard]} delay={20}>
               <View style={styles.panelHeader}>
                 <View style={styles.miniDetailsHeaderCopy}>
                   <Text style={styles.panelTitle} numberOfLines={1}>{selectedNote.title}</Text>
@@ -2078,14 +2181,17 @@ export default function App() {
                   <Text style={styles.secondaryActionText}>Voir plus</Text>
                 </Pressable>
               </View>
-            </View>
+            </FloatingSurface>
           )
         ) : null}
 
         {!composerOpen && !showNoteDetails && !selectedCluster && playbackNote ? (
-          <View style={styles.miniPlayer}>
+          <FloatingSurface style={styles.miniPlayer} delay={50}>
             <Pressable style={styles.miniPlayerMain} onPress={() => focusNote(playbackNote)}>
-              <View style={styles.miniPlayerDot} />
+              <View style={styles.miniPlayerLead}>
+                <View style={styles.miniPlayerDot} />
+                <MiniPlayerWave active={Boolean(playingId === playbackNote.id)} color={playbackNote.isLive ? "#ff8a97" : "#8fb2ff"} />
+              </View>
               <View style={styles.miniPlayerCopy}>
                 <Text style={styles.miniPlayerTitle} numberOfLines={1}>{playbackNote.title}</Text>
                 <Text style={styles.miniPlayerMeta}>
@@ -2098,21 +2204,21 @@ export default function App() {
             <Pressable style={styles.miniPlayerStop} onPress={() => void stopPlayback()}>
               <Text style={styles.miniPlayerStopText}>Stop</Text>
             </Pressable>
-          </View>
+          </FloatingSurface>
         ) : null}
 
         {!composerOpen && !showNoteDetails && !selectedCluster ? (
           <>
             {creationMenuOpen ? <Pressable style={styles.fabBackdrop} onPress={() => setCreationMenuOpen(false)} /> : null}
             {creationMenuOpen ? (
-              <View style={styles.fabMenu}>
+              <FloatingSurface style={styles.fabMenu} delay={25}>
                 <Pressable style={[styles.fabOption, styles.fabOptionAudio]} onPress={() => openComposerFor("audio")}>
                   <Text style={styles.fabOptionText}>Audio</Text>
                 </Pressable>
                 <Pressable style={[styles.fabOption, styles.fabOptionLive]} onPress={() => openComposerFor("live")}>
                   <Text style={styles.fabOptionText}>Live</Text>
                 </Pressable>
-              </View>
+              </FloatingSurface>
             ) : null}
             <Pressable
               style={styles.fab}
@@ -2122,7 +2228,29 @@ export default function App() {
                 setCreationMenuOpen((prev) => !prev);
               }}
             >
-              <Text style={styles.fabText}>{creationMenuOpen ? "x" : "+"}</Text>
+              <Animated.Text
+                style={[
+                  styles.fabText,
+                  {
+                    transform: [
+                      {
+                        rotate: fabProgress.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ["0deg", "45deg"]
+                        })
+                      },
+                      {
+                        scale: fabProgress.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1.08]
+                        })
+                      }
+                    ]
+                  }
+                ]}
+              >
+                +
+              </Animated.Text>
             </Pressable>
           </>
         ) : null}
@@ -2158,9 +2286,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 16, 23, 0.8)',
-    padding: 10,
-    borderRadius: 12,
+    backgroundColor: 'rgba(12, 15, 24, 0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 7
   },
   title: {
     color: "#fff",
@@ -2196,92 +2331,108 @@ const styles = StyleSheet.create({
   successBanner: {
     alignSelf: "center",
     marginTop: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
     borderRadius: 999,
-    backgroundColor: "rgba(20, 22, 31, 0.96)",
+    backgroundColor: "rgba(11, 15, 24, 0.96)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(143,178,255,0.2)",
     shadowColor: "#000",
     shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 6
+    shadowRadius: 14,
+    elevation: 7
   },
-  successText: { color: "#f7fbff", fontSize: 12, textAlign: "center", fontWeight: "700" },
+  successText: { color: "#f7fbff", fontSize: 12, textAlign: "center", fontWeight: "700", letterSpacing: 0.2 },
   quickExploreRow: {
     flexDirection: 'row',
     gap: 8,
     marginTop: 10
   },
   quickExploreBtn: {
-    backgroundColor: 'rgba(20, 22, 31, 0.92)',
+    backgroundColor: 'rgba(14, 17, 26, 0.94)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 999
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 5
   },
   quickExploreText: {
     color: '#f7fbff',
     fontSize: 12,
-    fontWeight: '700'
+    fontWeight: '700',
+    letterSpacing: 0.2
   },
 
   miniPlayer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 20,
-    marginBottom: 12,
-    borderRadius: 18,
-    backgroundColor: 'rgba(18, 20, 29, 0.96)',
+    marginBottom: 14,
+    borderRadius: 22,
+    backgroundColor: 'rgba(11, 15, 24, 0.97)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(143,178,255,0.12)',
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    elevation: 8
+    shadowOpacity: 0.26,
+    shadowRadius: 16,
+    elevation: 10
   },
   miniPlayerMain: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingLeft: 14,
+    paddingVertical: 13,
+    paddingLeft: 15,
     paddingRight: 10
   },
+  miniPlayerLead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: 42,
+    marginRight: 10
+  },
   miniPlayerDot: {
-    width: 10,
-    height: 10,
+    width: 11,
+    height: 11,
     borderRadius: 999,
-    backgroundColor: '#ff4757',
-    marginRight: 12
+    backgroundColor: '#ff5e70',
+    marginRight: 10,
+    shadowColor: '#ff5e70',
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 4
   },
   miniPlayerCopy: {
     flex: 1
   },
   miniPlayerTitle: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '700'
+    fontSize: 15,
+    fontWeight: '800'
   },
   miniPlayerMeta: {
-    color: '#a4b0be',
+    color: '#9fb2cc',
     fontSize: 12,
-    marginTop: 2
+    marginTop: 3
   },
   miniPlayerStop: {
     alignSelf: 'stretch',
     justifyContent: 'center',
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(255,71,87,0.12)',
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255,71,87,0.14)',
     borderLeftWidth: 1,
     borderLeftColor: 'rgba(255,255,255,0.06)'
   },
   miniPlayerStopText: {
-    color: '#ff8a97',
+    color: '#ff9aa4',
     fontSize: 12,
-    fontWeight: '800'
+    fontWeight: '800',
+    letterSpacing: 0.2
   },
 
   bottomSheetContainer: {
@@ -2292,26 +2443,28 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end'
   },
   panel: {
-    backgroundColor: '#1f2029',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: '#161922',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
     padding: 20,
     paddingBottom: 40,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 5,
-    maxHeight: "60%"
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.34,
+    shadowRadius: 16,
+    elevation: 9,
+    maxHeight: "68%"
   },
   panelHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15
+    marginBottom: 16
   },
-  panelTitle: { color: "#fff", fontSize: 18, fontWeight: "bold", flex: 1 },
-  closeText: { color: "#ff4757", fontWeight: "600" },
+  panelTitle: { color: "#fff", fontSize: 18, fontWeight: "800", flex: 1 },
+  closeText: { color: "#ff6f7d", fontWeight: "700" },
 
   composerScroll: {
     flexGrow: 0
@@ -2448,16 +2601,16 @@ const styles = StyleSheet.create({
   fab: {
     alignSelf: 'flex-end',
     margin: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     backgroundColor: '#ff4757',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 6
+    shadowColor: "#ff4757",
+    shadowOpacity: 0.32,
+    shadowRadius: 14,
+    elevation: 10
   },
   noteLabelRow: {
     flexDirection: 'row',
@@ -2471,6 +2624,7 @@ const styles = StyleSheet.create({
     borderRadius: 999
   },
   noteLabel_live: { backgroundColor: 'rgba(255,71,87,0.16)' },
+  noteLabel_fresh: { backgroundColor: 'rgba(46,213,115,0.18)' },
   noteLabel_popular: { backgroundColor: 'rgba(79,124,255,0.16)' },
   noteLabel_liked: { backgroundColor: 'rgba(255,255,255,0.12)' },
   noteLabel_warning: { backgroundColor: 'rgba(255,184,77,0.18)' },
@@ -2479,32 +2633,33 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700'
   },
-  fabText: { color: '#fff', fontSize: 30, marginTop: -2 },
+  fabText: { color: '#fff', fontSize: 31, marginTop: -2, fontWeight: '700' },
   fabBackdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "transparent"
   },
   fabMenu: {
     position: "absolute",
-    right: 20,
-    bottom: 20,
-    width: 180,
-    height: 180,
+    right: 18,
+    bottom: 18,
+    width: 194,
+    height: 194,
     pointerEvents: "box-none"
   },
   fabOption: {
     position: "absolute",
-    width: 76,
-    height: 76,
+    width: 82,
+    height: 82,
     borderRadius: 999,
     backgroundColor: "#ff4757",
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
+    shadowColor: "#ff4757",
     shadowOpacity: 0.22,
-    shadowRadius: 10,
-    elevation: 6
+    shadowRadius: 12,
+    elevation: 8
   },
   fabOptionAudio: {
     right: 60,
@@ -2593,11 +2748,11 @@ const styles = StyleSheet.create({
   },
   miniDetailsCard: {
     paddingBottom: 22,
-    maxHeight: 320
+    maxHeight: 340
   },
   expandedDetailsCard: {
     paddingBottom: 18,
-    maxHeight: "72%"
+    maxHeight: "76%"
   },
   expandedDetailsScroll: {
     flexGrow: 0
@@ -2649,14 +2804,18 @@ const styles = StyleSheet.create({
   },
   playSection: { marginBottom: 0 },
   playBtn: {
-    backgroundColor: '#2f3542',
-    paddingVertical: 14,
-    paddingHorizontal: 15,
-    borderRadius: 12,
-    alignItems: 'center'
+    backgroundColor: '#ff5b6d',
+    paddingVertical: 15,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#ff5b6d',
+    shadowOpacity: 0.24,
+    shadowRadius: 10,
+    elevation: 7
   },
   livePlayBtn: {
-    backgroundColor: '#c0392b'
+    backgroundColor: '#ff4757'
   },
   playText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },  progressSection: {
     marginTop: 12
@@ -2677,15 +2836,15 @@ const styles = StyleSheet.create({
     paddingVertical: 8
   },
   progressBarBg: {
-    height: 4,
-    backgroundColor: '#2f3542',
-    borderRadius: 2,
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 999,
     overflow: 'hidden'
   },
   progressBarFill: {
-    height: 4,
+    height: 6,
     backgroundColor: '#ff4757',
-    borderRadius: 2
+    borderRadius: 999
   },
 
   voteRow: {
