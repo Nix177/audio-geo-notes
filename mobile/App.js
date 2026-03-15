@@ -22,7 +22,7 @@ import { StatusBar } from "expo-status-bar";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import * as Location from "expo-location";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, Polyline } from "react-native-maps";
 
 const DEFAULT_API =
   process.env.EXPO_PUBLIC_API_BASE_URL || "http://31.97.77.6:4000";
@@ -862,7 +862,9 @@ export default function App() {
       setComposerOpen(false);
       setCreationMenuOpen(false);
       setMenuOpen(false);
-      setSelectedCluster(null);
+      if (!options.preserveCluster) {
+        setSelectedCluster(null);
+      }
       if (shouldAnimate && mapRef.current?.animateToRegion) {
         mapRef.current.animateToRegion(
           {
@@ -1705,6 +1707,37 @@ export default function App() {
           </Marker>
         )}
 
+        {selectedCluster ? (
+          <Marker
+            coordinate={{ latitude: selectedCluster.lat, longitude: selectedCluster.lng }}
+            tracksViewChanges={false}
+            onSelect={() => setSelectedCluster(null)}
+            onPress={(event) => {
+              event.stopPropagation?.();
+              setSelectedCluster(null);
+            }}
+          >
+            <ClusterPin archiveCount={selectedCluster.archiveCount} liveCount={selectedCluster.liveCount} />
+          </Marker>
+        ) : null}
+
+        {selectedCluster ? visibleMarkers.filter((entry) => entry.type === "note" && entry.note.isSpiderfied).map((entry) => {
+          const note = entry.note;
+          return (
+            <Polyline
+              key={"cluster-link-" + note.id}
+              coordinates={[
+                { latitude: selectedCluster.lat, longitude: selectedCluster.lng },
+                { latitude: Number.isFinite(note.renderLat) ? note.renderLat : note.lat, longitude: Number.isFinite(note.renderLng) ? note.renderLng : note.lng }
+              ]}
+              strokeColor={note.isLive ? "rgba(255,71,87,0.34)" : "rgba(79,124,255,0.34)"}
+              strokeWidth={2}
+              lineDashPattern={[4, 6]}
+              lineCap="round"
+            />
+          );
+        }) : null}
+
         {visibleMarkers.map((entry) => {
           if (entry.type === "cluster") {
             return (
@@ -1735,10 +1768,10 @@ export default function App() {
               title={note.title}
               description={note.author}
               tracksViewChanges={note.isLive}
-              onSelect={() => focusNote(note, { animate: false })}
+              onSelect={() => focusNote(note, { animate: false, preserveCluster: note.isSpiderfied })}
               onPress={(event) => {
                 event.stopPropagation?.();
-                focusNote(note, { animate: false });
+                focusNote(note, { animate: false, preserveCluster: note.isSpiderfied });
               }}
             >
               {note.isLive ? (
