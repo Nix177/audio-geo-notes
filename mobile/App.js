@@ -1721,7 +1721,11 @@ export default function App() {
           </Marker>
         ) : null}
 
-        {selectedCluster ? visibleMarkers.filter((entry) => entry.type === "note" && entry.note.isSpiderfied).map((entry) => {
+        {selectedCluster ? visibleMarkers.filter((entry) =>
+          entry.type === "note" &&
+          entry.note.isSpiderfied &&
+          selectedCluster.notes.some((clusterNote) => clusterNote.id === entry.note.id)
+        ).map((entry) => {
           const note = entry.note;
           return (
             <Polyline
