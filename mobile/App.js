@@ -790,10 +790,51 @@ export default function App() {
     () => notes.find((entry) => entry.id === playingId) || null,
     [notes, playingId]
   );
-  const visibleMarkers = useMemo(
-    () => clusterNotes(mapNotes, mapRegion),
-    [mapNotes, mapRegion]
-  );
+  const visibleMarkers = useMemo(() => {
+    const clustered = clusterNotes(mapNotes, mapRegion);
+    if (!selectedCluster?.id) return clustered;
+
+    const spreadEntries = (cluster) => {
+      const latitudeDelta = Math.max(mapRegion?.latitudeDelta || cluster.latitudeDelta || 0.02, 0.004);
+      const longitudeDelta = Math.max(mapRegion?.longitudeDelta || cluster.longitudeDelta || 0.02, 0.004);
+      const latRadius = Math.min(Math.max(latitudeDelta * 0.22, 0.00016), 0.0005);
+      const lngRadius = Math.min(Math.max(longitudeDelta * 0.22, 0.00016), 0.0005);
+
+      const spreadSide = (notes, startAngle, endAngle) => {
+        if (!notes.length) return [];
+        return notes.map((note, index) => {
+          const ratio = notes.length === 1 ? 0.5 : index / (notes.length - 1);
+          const angle = startAngle + ((endAngle - startAngle) * ratio);
+          const ring = Math.floor(index / 4);
+          const ringScale = 1 + (ring * 0.34);
+          return {
+            type: "note",
+            note: {
+              ...note,
+              renderLat: cluster.lat + (Math.sin(angle) * latRadius * ringScale),
+              renderLng: cluster.lng + (Math.cos(angle) * lngRadius * ringScale),
+              isSpiderfied: true
+            }
+          };
+        });
+      };
+
+      const archiveNotes = cluster.notes.filter((note) => !note.isLive);
+      const liveNotes = cluster.notes.filter((note) => note.isLive);
+
+      return [
+        ...spreadSide(archiveNotes, Math.PI * 0.68, Math.PI * 1.32),
+        ...spreadSide(liveNotes, -Math.PI * 0.32, Math.PI * 0.32)
+      ];
+    };
+
+    return clustered.flatMap((entry) => {
+      if (entry.type === "cluster" && entry.id === selectedCluster.id) {
+        return spreadEntries(entry);
+      }
+      return [entry];
+    });
+  }, [mapNotes, mapRegion, selectedCluster]);
   const detailNotes = useMemo(
     () => mapNotes.slice().sort((left, right) => Number(right.isLive) - Number(left.isLive)),
     [mapNotes]
@@ -1893,74 +1934,6 @@ export default function App() {
           </View>
         )}
 
-        {!composerOpen && !showNoteDetails && selectedCluster ? (
-          <View style={[styles.panel, styles.clusterPanel]}>
-            <View style={styles.panelHeader}>
-              <View style={styles.clusterHeaderCopy}>
-                <Text style={styles.panelTitle}>Zone dense</Text>
-                <Text style={styles.clusterSummary}>{`${selectedCluster.liveCount} live - ${selectedCluster.archiveCount} sons`}</Text>
-              </View>
-              <Pressable onPress={() => setSelectedCluster(null)}>
-                <Text style={styles.closeText}>Fermer</Text>
-              </Pressable>
-            </View>
-            <Pressable
-              style={styles.clusterZoomBtn}
-              onPress={() => {
-                mapRef.current?.animateToRegion(
-                  {
-                    latitude: selectedCluster.lat,
-                    longitude: selectedCluster.lng,
-                    latitudeDelta: selectedCluster.latitudeDelta,
-                    longitudeDelta: selectedCluster.longitudeDelta
-                  },
-                  280
-                );
-                setSelectedCluster(null);
-              }}
-            >
-              <Text style={styles.clusterZoomText}>Zoomer ici</Text>
-            </Pressable>
-            <View style={styles.clusterSplitRow}>
-              <View style={[styles.clusterLane, styles.clusterLaneArchive]}>
-                <View style={styles.clusterLaneHeader}>
-                  <Text style={styles.clusterLaneTitle}>Audios</Text>
-                  <Text style={styles.clusterLaneCount}>{selectedClusterArchiveNotes.length}</Text>
-                </View>
-                <ScrollView style={styles.clusterList} showsVerticalScrollIndicator={false}>
-                  {selectedClusterArchiveNotes.length ? selectedClusterArchiveNotes.map((note) => (
-                    <Pressable key={note.id} style={styles.clusterItem} onPress={() => focusNote(note, { animate: false })}>
-                      <View style={[styles.clusterItemDot, styles.clusterItemDotArchive]} />
-                      <View style={styles.clusterItemCopy}>
-                        <Text style={styles.clusterItemTitle} numberOfLines={1}>{note.title}</Text>
-                        <Text style={styles.clusterItemMeta} numberOfLines={1}>{`Son - ${note.author || "Mobile User"}`}</Text>
-                      </View>
-                      <Text style={styles.clusterItemArrow}>{">"}</Text>
-                    </Pressable>
-                  )) : <Text style={styles.clusterEmptyText}>Aucun audio ici.</Text>}
-                </ScrollView>
-              </View>
-              <View style={[styles.clusterLane, styles.clusterLaneLive]}>
-                <View style={styles.clusterLaneHeader}>
-                  <Text style={styles.clusterLaneTitle}>Lives</Text>
-                  <Text style={styles.clusterLaneCount}>{selectedClusterLiveNotes.length}</Text>
-                </View>
-                <ScrollView style={styles.clusterList} showsVerticalScrollIndicator={false}>
-                  {selectedClusterLiveNotes.length ? selectedClusterLiveNotes.map((note) => (
-                    <Pressable key={note.id} style={styles.clusterItem} onPress={() => focusNote(note, { animate: false })}>
-                      <View style={[styles.clusterItemDot, styles.clusterItemDotLive]} />
-                      <View style={styles.clusterItemCopy}>
-                        <Text style={styles.clusterItemTitle} numberOfLines={1}>{note.title}</Text>
-                        <Text style={styles.clusterItemMeta} numberOfLines={1}>{`Live - ${note.author || "Mobile User"}`}</Text>
-                      </View>
-                      <Text style={styles.clusterItemArrow}>{">"}</Text>
-                    </Pressable>
-                  )) : <Text style={styles.clusterEmptyText}>Aucun live ici.</Text>}
-                </ScrollView>
-              </View>
-            </View>
-          </View>
-        ) : null}
 
         {showNoteDetails && selectedNote && !composerOpen ? (
           showExpandedDetails ? (
@@ -2870,12 +2843,32 @@ const styles = StyleSheet.create({
     paddingBottom: 40
   },
   miniDetailsCard: {
-    paddingBottom: 22,
-    maxHeight: 320
+    paddingBottom: 18,
+    maxHeight: 332,
+    marginHorizontal: 12,
+    marginBottom: 14,
+    borderRadius: 26,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#1a1b24'
   },
   expandedDetailsCard: {
     paddingBottom: 18,
-    maxHeight: "72%"
+    maxHeight: "76%",
+    marginHorizontal: 10,
+    marginBottom: 14,
+    borderRadius: 28,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#1a1b24'
   },
   expandedDetailsScroll: {
     flexGrow: 0
