@@ -798,6 +798,14 @@ export default function App() {
     () => mapNotes.slice().sort((left, right) => Number(right.isLive) - Number(left.isLive)),
     [mapNotes]
   );
+  const selectedClusterArchiveNotes = useMemo(
+    () => (selectedCluster?.notes || []).filter((entry) => !entry.isLive),
+    [selectedCluster]
+  );
+  const selectedClusterLiveNotes = useMemo(
+    () => (selectedCluster?.notes || []).filter((entry) => entry.isLive),
+    [selectedCluster]
+  );
   const selectedDetailIndex = useMemo(
     () => detailNotes.findIndex((entry) => entry.id === selectedNoteId),
     [detailNotes, selectedNoteId]
@@ -833,6 +841,15 @@ export default function App() {
   const openCluster = useCallback(
     (cluster) => {
       if (!cluster) return;
+      mapRef.current?.animateToRegion?.(
+        {
+          latitude: cluster.lat,
+          longitude: cluster.lng,
+          latitudeDelta: Math.max(cluster.latitudeDelta * 0.72, 0.0046),
+          longitudeDelta: Math.max(cluster.longitudeDelta * 0.72, 0.0046)
+        },
+        260
+      );
       setSelectedCluster(cluster);
       setSelectedNoteId("");
       setShowNoteDetails(false);
@@ -1842,12 +1859,31 @@ export default function App() {
                     <Text style={styles.coordText}>
                       Live: {composerCoords.lat.toFixed(4)}, {composerCoords.lng.toFixed(4)} - {isManualPos ? "Position privee" : "GPS reel"}
                     </Text>
+                    {liveActive ? (
+                      <View style={styles.liveStatusCard}>
+                        <View style={styles.liveStatusDot} />
+                        <View style={styles.liveStatusCopy}>
+                          <Text style={styles.liveStatusTitle}>Live en cours</Text>
+                          <Text style={styles.liveStatusMeta}>Votre live reste actif tant que vous ne l'arretez pas.</Text>
+                        </View>
+                      </View>
+                    ) : null}
                     <View style={styles.liveActions}>
-                      <Pressable style={[styles.miniBtn, liveActive && styles.disabled]} onPress={() => void startLive()} disabled={liveActive || liveBusy}>
-                        <Text style={styles.miniBtnText}>Go Live</Text>
-                      </Pressable>
-                      <Pressable style={[styles.miniBtn, !liveActive && styles.disabled]} onPress={() => void stopLive()} disabled={!liveActive || liveBusy}>
-                        <Text style={styles.miniBtnText}>Stop Live</Text>
+                      {!liveActive ? (
+                        <Pressable
+                          style={[styles.livePrimaryBtn, (liveActive || liveBusy) && styles.disabled]}
+                          onPress={() => void startLive()}
+                          disabled={liveActive || liveBusy}
+                        >
+                          <Text style={styles.livePrimaryText}>{liveBusy ? "Demarrage..." : "Go Live"}</Text>
+                        </Pressable>
+                      ) : null}
+                      <Pressable
+                        style={[styles.liveStopBtn, (!liveActive || liveBusy) && styles.disabled]}
+                        onPress={() => void stopLive()}
+                        disabled={!liveActive || liveBusy}
+                      >
+                        <Text style={styles.liveStopText}>{liveBusy ? "Arret..." : "Stop Live"}</Text>
                       </Pressable>
                     </View>
                   </View>
@@ -1885,18 +1921,44 @@ export default function App() {
             >
               <Text style={styles.clusterZoomText}>Zoomer ici</Text>
             </Pressable>
-            <ScrollView style={styles.clusterList} showsVerticalScrollIndicator={false}>
-              {selectedCluster.notes.slice(0, 6).map((note) => (
-                <Pressable key={note.id} style={styles.clusterItem} onPress={() => focusNote(note, { animate: false })}>
-                  <View style={[styles.clusterItemDot, note.isLive ? styles.clusterItemDotLive : styles.clusterItemDotArchive]} />
-                  <View style={styles.clusterItemCopy}>
-                    <Text style={styles.clusterItemTitle} numberOfLines={1}>{note.title}</Text>
-                    <Text style={styles.clusterItemMeta} numberOfLines={1}>{`${note.isLive ? "Live" : "Son"} - ${note.author || "Mobile User"}`}</Text>
-                  </View>
-                  <Text style={styles.clusterItemArrow}>{">"}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+            <View style={styles.clusterSplitRow}>
+              <View style={[styles.clusterLane, styles.clusterLaneArchive]}>
+                <View style={styles.clusterLaneHeader}>
+                  <Text style={styles.clusterLaneTitle}>Audios</Text>
+                  <Text style={styles.clusterLaneCount}>{selectedClusterArchiveNotes.length}</Text>
+                </View>
+                <ScrollView style={styles.clusterList} showsVerticalScrollIndicator={false}>
+                  {selectedClusterArchiveNotes.length ? selectedClusterArchiveNotes.map((note) => (
+                    <Pressable key={note.id} style={styles.clusterItem} onPress={() => focusNote(note, { animate: false })}>
+                      <View style={[styles.clusterItemDot, styles.clusterItemDotArchive]} />
+                      <View style={styles.clusterItemCopy}>
+                        <Text style={styles.clusterItemTitle} numberOfLines={1}>{note.title}</Text>
+                        <Text style={styles.clusterItemMeta} numberOfLines={1}>{`Son - ${note.author || "Mobile User"}`}</Text>
+                      </View>
+                      <Text style={styles.clusterItemArrow}>{">"}</Text>
+                    </Pressable>
+                  )) : <Text style={styles.clusterEmptyText}>Aucun audio ici.</Text>}
+                </ScrollView>
+              </View>
+              <View style={[styles.clusterLane, styles.clusterLaneLive]}>
+                <View style={styles.clusterLaneHeader}>
+                  <Text style={styles.clusterLaneTitle}>Lives</Text>
+                  <Text style={styles.clusterLaneCount}>{selectedClusterLiveNotes.length}</Text>
+                </View>
+                <ScrollView style={styles.clusterList} showsVerticalScrollIndicator={false}>
+                  {selectedClusterLiveNotes.length ? selectedClusterLiveNotes.map((note) => (
+                    <Pressable key={note.id} style={styles.clusterItem} onPress={() => focusNote(note, { animate: false })}>
+                      <View style={[styles.clusterItemDot, styles.clusterItemDotLive]} />
+                      <View style={styles.clusterItemCopy}>
+                        <Text style={styles.clusterItemTitle} numberOfLines={1}>{note.title}</Text>
+                        <Text style={styles.clusterItemMeta} numberOfLines={1}>{`Live - ${note.author || "Mobile User"}`}</Text>
+                      </View>
+                      <Text style={styles.clusterItemArrow}>{">"}</Text>
+                    </Pressable>
+                  )) : <Text style={styles.clusterEmptyText}>Aucun live ici.</Text>}
+                </ScrollView>
+              </View>
+            </View>
           </View>
         ) : null}
 
@@ -2126,6 +2188,31 @@ export default function App() {
             </Pressable>
             <Pressable style={styles.miniPlayerStop} onPress={() => void stopPlayback()}>
               <Text style={styles.miniPlayerStopText}>Stop</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {!composerOpen && !showNoteDetails && !selectedCluster && liveActive ? (
+          <View style={styles.liveDock}>
+            <Pressable
+              style={styles.liveDockMain}
+              onPress={() => {
+                setComposerIntent("live");
+                setComposerOpen(true);
+                setCreationMenuOpen(false);
+                setMenuOpen(false);
+              }}
+            >
+              <View style={styles.liveDockBeacon}>
+                <View style={styles.liveDockBeaconInner} />
+              </View>
+              <View style={styles.liveDockCopy}>
+                <Text style={styles.liveDockTitle}>Live en cours</Text>
+                <Text style={styles.liveDockMeta}>Touchez ici pour retrouver les controles.</Text>
+              </View>
+            </Pressable>
+            <Pressable style={[styles.liveDockStop, liveBusy && styles.disabled]} onPress={() => void stopLive()} disabled={liveBusy}>
+              <Text style={styles.liveDockStopText}>{liveBusy ? "..." : "Stop"}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -2472,13 +2559,61 @@ const styles = StyleSheet.create({
   },
   liveLabel: { color: '#a4b0be', marginBottom: 10, fontSize: 12 },
   liveActions: { flexDirection: 'row', gap: 10 },
-  miniBtn: {
-    backgroundColor: '#eccc68',
-    paddingVertical: 8,
+  liveStatusCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,71,87,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,107,129,0.28)",
+    borderRadius: 16,
+    paddingVertical: 11,
     paddingHorizontal: 12,
-    borderRadius: 6
+    marginBottom: 12
   },
-  miniBtnText: { color: '#2f3542', fontWeight: 'bold', fontSize: 12 },
+  liveStatusDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 999,
+    backgroundColor: "#ff4757",
+    marginRight: 10
+  },
+  liveStatusCopy: {
+    flex: 1
+  },
+  liveStatusTitle: {
+    color: "#fff5f6",
+    fontSize: 14,
+    fontWeight: "700"
+  },
+  liveStatusMeta: {
+    color: "#ffb3bb",
+    fontSize: 12,
+    marginTop: 2
+  },
+  livePrimaryBtn: {
+    flex: 1,
+    backgroundColor: "#ff4757",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    shadowColor: "#ff4757",
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 5
+  },
+  livePrimaryText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  liveStopBtn: {
+    flex: 1,
+    backgroundColor: "#2f3542",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: "center"
+  },
+  liveStopText: { color: "#f1f2f6", fontWeight: "800", fontSize: 14 },
 
   fab: {
     alignSelf: 'flex-end',
@@ -2557,7 +2692,7 @@ const styles = StyleSheet.create({
 
   clusterPanel: {
     paddingBottom: 20,
-    maxHeight: "44%"
+    maxHeight: "50%"
   },
   clusterHeaderCopy: {
     flex: 1,
@@ -2586,10 +2721,60 @@ const styles = StyleSheet.create({
   clusterList: {
     flexGrow: 0
   },
+  clusterSplitRow: {
+    flexDirection: "row",
+    gap: 12
+  },
+  clusterLane: {
+    flex: 1,
+    borderRadius: 22,
+    paddingHorizontal: 10,
+    paddingTop: 12,
+    paddingBottom: 10,
+    minHeight: 220,
+    maxHeight: 280
+  },
+  clusterLaneArchive: {
+    backgroundColor: "rgba(79,124,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(116,185,255,0.26)"
+  },
+  clusterLaneLive: {
+    backgroundColor: "rgba(255,71,87,0.13)",
+    borderWidth: 1,
+    borderColor: "rgba(255,107,129,0.24)"
+  },
+  clusterLaneHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10
+  },
+  clusterLaneTitle: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800"
+  },
+  clusterLaneCount: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "800",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 8
+  },
+  clusterEmptyText: {
+    color: "#dfe6f6",
+    fontSize: 12,
+    lineHeight: 17,
+    paddingHorizontal: 4,
+    paddingTop: 6
+  },
   clusterItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: "rgba(15,16,23,0.22)",
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 12,
@@ -2621,6 +2806,64 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     marginLeft: 10
+  },
+  liveDock: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,71,87,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,107,129,0.28)",
+    borderRadius: 22,
+    marginHorizontal: 18,
+    marginBottom: 10,
+    overflow: "hidden"
+  },
+  liveDockMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 13
+  },
+  liveDockBeacon: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,71,87,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12
+  },
+  liveDockBeaconInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: "#ff4757"
+  },
+  liveDockCopy: {
+    flex: 1
+  },
+  liveDockTitle: {
+    color: "#fff6f7",
+    fontSize: 14,
+    fontWeight: "800"
+  },
+  liveDockMeta: {
+    color: "#ffb4bc",
+    fontSize: 12,
+    marginTop: 2
+  },
+  liveDockStop: {
+    backgroundColor: "#ff4757",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    alignSelf: "stretch",
+    justifyContent: "center"
+  },
+  liveDockStopText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800"
   },
 
   detailsPanel: {
