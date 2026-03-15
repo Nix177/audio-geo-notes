@@ -22,7 +22,7 @@ import { StatusBar } from "expo-status-bar";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import * as Location from "expo-location";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, Polyline } from "react-native-maps";
 
 const DEFAULT_API =
   process.env.EXPO_PUBLIC_API_BASE_URL || "http://31.97.77.6:4000";
@@ -66,30 +66,29 @@ function formatTime(ms) {
   return `${min}:${sec < 10 ? "0" : ""}${sec}`;
 }
 
-/* Map marker visuals */
 function getMarkerVisuals(note) {
   const negativeWeight = (note.downvotes || 0) + ((note.reports || 0) * 2);
   const positiveWeight = note.likes || 0;
   const totalWeight = positiveWeight + negativeWeight;
-  let scale = note.isLive ? 1.08 : 1;
+  let scale = note.isLive ? 1.05 : 1;
   let opacity = 1;
   let color = note.isLive ? "#ff4757" : "#4f7cff";
   let tone = note.isLive ? "#fff7f8" : "#f7fbff";
-  let glow = note.isLive ? 0.16 : 0;
+  let glow = 0;
 
   if (totalWeight >= 3) {
     const ratio = (positiveWeight - negativeWeight) / totalWeight;
     if (ratio >= 0) {
-      scale += Math.min(ratio * 0.55, 0.55);
+      scale += Math.min(ratio * 0.5, 0.5);
       if (!note.isLive) {
-        glow = Math.max(0, Math.min(1, (ratio - 0.28) / 0.42));
+        glow = Math.max(0, Math.min(1, (ratio - 0.38) / 0.4));
         if (glow > 0) {
-          color = glow > 0.72 ? "#9dbdff" : "#78a2ff";
+          color = glow > 0.72 ? "#86abff" : "#6f98ff";
           tone = "#ffffff";
         }
       }
     } else {
-      opacity = Math.max(0.2, 1 + (ratio * 1.55));
+      opacity = Math.max(0.18, 1 + (ratio * 1.5));
     }
   }
 
@@ -115,7 +114,6 @@ function getNoteLabels(note) {
   const totalWeight = positiveWeight + negativeWeight;
 
   if (note.isLive) labels.push({ text: 'Live', tone: 'live' });
-  if (!note.isLive && totalWeight <= 1 && (note.plays || 0) <= 2) labels.push({ text: 'Nouveau', tone: 'fresh' });
   if ((note.plays || 0) >= 30 || totalWeight >= 8) labels.push({ text: 'Tres ecoute', tone: 'popular' });
   if ((note.likes || 0) >= 4 || getScore(note) >= 5) labels.push({ text: 'Apprecie', tone: 'liked' });
   if (negativeWeight >= 3 && negativeWeight > positiveWeight) labels.push({ text: 'Controverse', tone: 'warning' });
@@ -459,81 +457,6 @@ const livePulseStyles = StyleSheet.create({
     backgroundColor: "transparent"
   }
 });
-
-function FloatingSurface({ children, style, visible = true, delay = 0 }) {
-  const progress = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(progress, {
-      toValue: visible ? 1 : 0,
-      duration: visible ? 220 : 160,
-      delay,
-      useNativeDriver: true
-    }).start();
-  }, [delay, progress, visible]);
-
-  return (
-    <Animated.View
-      style={[
-        style,
-        {
-          opacity: progress,
-          transform: [
-            { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) },
-            { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) }
-          ]
-        }
-      ]}
-    >
-      {children}
-    </Animated.View>
-  );
-}
-
-function MiniPlayerWave({ active = false, color = "#ff8a97" }) {
-  const wave = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (!active) {
-      wave.stopAnimation();
-      wave.setValue(0);
-      return undefined;
-    }
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(wave, { toValue: 1, duration: 380, useNativeDriver: true }),
-        Animated.timing(wave, { toValue: 0, duration: 380, useNativeDriver: true })
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [active, wave]);
-
-  return (
-    <View style={miniWaveStyles.row}>
-      {[0, 1, 2].map((index) => {
-        const scaleY = active
-          ? wave.interpolate({
-            inputRange: [0, 0.5, 1],
-            outputRange:
-              index === 1 ? [0.7, 1.22, 0.7] : index === 0 ? [0.58, 1, 0.58] : [0.48, 0.84, 0.48]
-          })
-          : 1;
-        return (
-          <Animated.View
-            key={index}
-            style={[miniWaveStyles.bar, { backgroundColor: color, transform: [{ scaleY }] }]}
-          />
-        );
-      })}
-    </View>
-  );
-}
-
-const miniWaveStyles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "flex-end", gap: 3, marginRight: 10 },
-  bar: { width: 3, height: 16, borderRadius: 999, opacity: 0.95 }
-});
 export default function App() {
   const [apiBase] = useState(DEFAULT_API);
   const [notes, setNotes] = useState([]);
@@ -594,7 +517,6 @@ export default function App() {
     streamId: "",
     chunkRecording: null
   });
-  const fabProgress = useRef(new Animated.Value(0)).current;
   const ensureClientId = useCallback(async () => {
     if (clientIdRef.current) return clientIdRef.current;
     const baseUri = FileSystem.documentDirectory || FileSystem.cacheDirectory;
@@ -724,7 +646,7 @@ export default function App() {
     const promptIfPossible = options.promptIfPossible !== false;
     const servicesEnabled = await Location.hasServicesEnabledAsync();
     if (!servicesEnabled) {
-      setError("Activez la localisation sur votre appareil.");
+      setError("Activez la localisation sur iPhone.");
       showLocationSettingsPrompt();
       throw new Error("Localisation desactivee");
     }
@@ -808,6 +730,14 @@ export default function App() {
       .then(() => updateLocation())
       .catch(() => {});
   }, [ensureLocationPermissions, updateLocation]);
+  useEffect(() => {
+    void Audio.getPermissionsAsync()
+      .then((perm) => {
+        if (perm.granted || perm.canAskAgain === false) return perm;
+        return Audio.requestPermissionsAsync();
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
@@ -845,34 +775,12 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    Animated.spring(fabProgress, {
-      toValue: creationMenuOpen ? 1 : 0,
-      stiffness: 260,
-      damping: 18,
-      mass: 0.8,
-      useNativeDriver: true
-    }).start();
-  }, [creationMenuOpen, fabProgress]);
-
   const mapNotes = useMemo(
     () =>
       notes
         .filter((entry) => Number.isFinite(entry.lat) && Number.isFinite(entry.lng))
-        .map((entry) => {
-          const visuals = getMarkerVisuals(entry);
-          const isFocused = entry.id === selectedNoteId || entry.id === playingId;
-          const hasFocus = Boolean(selectedNoteId || playingId);
-
-          return {
-            ...entry,
-            ...visuals,
-            markerScale: isFocused ? visuals.markerScale + 0.12 : visuals.markerScale,
-            markerOpacity: hasFocus && !isFocused ? Math.max(0.24, visuals.markerOpacity * 0.62) : visuals.markerOpacity,
-            markerGlow: isFocused ? Math.min(1, visuals.markerGlow + 0.22) : visuals.markerGlow
-          };
-        }),
-    [notes, playingId, selectedNoteId]
+        .map((entry) => ({ ...entry, ...getMarkerVisuals(entry) })),
+    [notes]
   );
   const selectedNote = useMemo(
     () => notes.find((entry) => entry.id === selectedNoteId) || null,
@@ -882,13 +790,62 @@ export default function App() {
     () => notes.find((entry) => entry.id === playingId) || null,
     [notes, playingId]
   );
-  const visibleMarkers = useMemo(
-    () => clusterNotes(mapNotes, mapRegion),
-    [mapNotes, mapRegion]
-  );
+  const visibleMarkers = useMemo(() => {
+    const clustered = clusterNotes(mapNotes, mapRegion);
+    if (!selectedCluster?.id) return clustered;
+
+    const spreadEntries = (cluster) => {
+      const latitudeDelta = Math.max(mapRegion?.latitudeDelta || cluster.latitudeDelta || 0.02, 0.004);
+      const longitudeDelta = Math.max(mapRegion?.longitudeDelta || cluster.longitudeDelta || 0.02, 0.004);
+      const latRadius = Math.min(Math.max(latitudeDelta * 0.22, 0.00016), 0.0005);
+      const lngRadius = Math.min(Math.max(longitudeDelta * 0.22, 0.00016), 0.0005);
+
+      const spreadSide = (notes, startAngle, endAngle) => {
+        if (!notes.length) return [];
+        return notes.map((note, index) => {
+          const ratio = notes.length === 1 ? 0.5 : index / (notes.length - 1);
+          const angle = startAngle + ((endAngle - startAngle) * ratio);
+          const ring = Math.floor(index / 4);
+          const ringScale = 1 + (ring * 0.34);
+          return {
+            type: "note",
+            note: {
+              ...note,
+              renderLat: cluster.lat + (Math.sin(angle) * latRadius * ringScale),
+              renderLng: cluster.lng + (Math.cos(angle) * lngRadius * ringScale),
+              isSpiderfied: true
+            }
+          };
+        });
+      };
+
+      const archiveNotes = cluster.notes.filter((note) => !note.isLive);
+      const liveNotes = cluster.notes.filter((note) => note.isLive);
+
+      return [
+        ...spreadSide(archiveNotes, Math.PI * 0.68, Math.PI * 1.32),
+        ...spreadSide(liveNotes, -Math.PI * 0.32, Math.PI * 0.32)
+      ];
+    };
+
+    return clustered.flatMap((entry) => {
+      if (entry.type === "cluster" && entry.id === selectedCluster.id) {
+        return spreadEntries(entry);
+      }
+      return [entry];
+    });
+  }, [mapNotes, mapRegion, selectedCluster]);
   const detailNotes = useMemo(
     () => mapNotes.slice().sort((left, right) => Number(right.isLive) - Number(left.isLive)),
     [mapNotes]
+  );
+  const selectedClusterArchiveNotes = useMemo(
+    () => (selectedCluster?.notes || []).filter((entry) => !entry.isLive),
+    [selectedCluster]
+  );
+  const selectedClusterLiveNotes = useMemo(
+    () => (selectedCluster?.notes || []).filter((entry) => entry.isLive),
+    [selectedCluster]
   );
   const selectedDetailIndex = useMemo(
     () => detailNotes.findIndex((entry) => entry.id === selectedNoteId),
@@ -905,7 +862,9 @@ export default function App() {
       setComposerOpen(false);
       setCreationMenuOpen(false);
       setMenuOpen(false);
-      setSelectedCluster(null);
+      if (!options.preserveCluster) {
+        setSelectedCluster(null);
+      }
       if (shouldAnimate && mapRef.current?.animateToRegion) {
         mapRef.current.animateToRegion(
           {
@@ -925,6 +884,15 @@ export default function App() {
   const openCluster = useCallback(
     (cluster) => {
       if (!cluster) return;
+      mapRef.current?.animateToRegion?.(
+        {
+          latitude: cluster.lat,
+          longitude: cluster.lng,
+          latitudeDelta: Math.max(cluster.latitudeDelta * 0.72, 0.0046),
+          longitudeDelta: Math.max(cluster.longitudeDelta * 0.72, 0.0046)
+        },
+        260
+      );
       setSelectedCluster(cluster);
       setSelectedNoteId("");
       setShowNoteDetails(false);
@@ -1094,21 +1062,27 @@ export default function App() {
       setComposerCoords(next);
       setError("");
     } catch (_locError) {
-      setError("Impossible de recuperer votre position. Activez la localisation precise sur votre appareil.");
+      setError("Impossible de recuperer votre position. Activez la localisation precise sur iPhone.");
     }
-  }, [isManualPos, readLocation]);  const startMeterPolling = useCallback((rec) => {
+  }, [isManualPos, readLocation]);
+
+  const startMeterPolling = useCallback((rec) => {
     setMeterLevels([]);
     meterTimerRef.current = setInterval(async () => {
       try {
         const status = await rec.getStatusAsync();
-        if (status.isRecording && status.metering != null) {          const db = status.metering;
+        if (status.isRecording && status.metering != null) {
+          // metering is in dB (typically -160 to 0). Normalize to 0..1
+          const db = status.metering;
           const normalized = Math.max(0, Math.min(1, (db + 60) / 60));
           setMeterLevels((prev) => {
             const next = [...prev, normalized];
             return next.length > METER_BARS ? next.slice(-METER_BARS) : next;
           });
         }
-      } catch (_e) {      }
+      } catch (_e) {
+        // ignore if recording ended
+      }
     }, METER_INTERVAL);
   }, []);
 
@@ -1159,7 +1133,9 @@ export default function App() {
   const clearRecorded = useCallback(() => {
     setRecordedUri("");
     setMeterLevels([]);
-  }, []);  const togglePreview = useCallback(async () => {
+  }, []);
+
+  const togglePreview = useCallback(async () => {
     if (previewPlaying) {
       if (previewSoundRef.current) {
         await previewSoundRef.current.stopAsync().catch(() => { });
@@ -1170,7 +1146,9 @@ export default function App() {
       return;
     }
     if (!recordedUri) return;
-    try {      await Audio.setAudioModeAsync({
+    try {
+      // Reset audio mode for playback
+      await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
@@ -1193,7 +1171,6 @@ export default function App() {
         }
       });
     } catch (_e) {
-      setError("Impossible de lire l'apercu");
     }
   }, [previewPlaying, recordedUri]);
 
@@ -1221,7 +1198,9 @@ export default function App() {
     }
 
     return formData;
-  }, []);  const publishNote = useCallback(async () => {
+  }, []);
+
+  const publishNote = useCallback(async () => {
     const cleanTitle = title.trim();
     const cleanAuthor = author.trim() || "Mobile User";
     const cleanDescription = description.trim();
@@ -1393,6 +1372,7 @@ export default function App() {
     },
     [apiRequest, playingId, showSuccess, stopPlayback]
   );
+
   const stopPlayback = useCallback(async () => {
     if (soundRef.current) {
       await soundRef.current.stopAsync().catch(() => { });
@@ -1417,7 +1397,9 @@ export default function App() {
       }
 
       try {
-        await stopPlayback();        await Audio.setAudioModeAsync({
+        await stopPlayback();
+        // Make sure audio mode is set for playback
+        await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
           playsInSilentModeIOS: true,
           staysActiveInBackground: false,
@@ -1517,7 +1499,9 @@ export default function App() {
             body: { listeners: Math.max(1, Math.round(Math.random() * 20)) }
           });
           upsertLocal(hb);
-        } catch (_e) {        }
+        } catch (_e) {
+          // silent
+        }
       }
     },
     [apiRequest, uploadLiveChunk, upsertLocal]
@@ -1613,7 +1597,9 @@ export default function App() {
       setLiveBusy(false);
       void loadNotes(true);
     }
-  }, [apiRequest, loadNotes, upsertLocal]);  const listenToLive = useCallback(async (note) => {
+  }, [apiRequest, loadNotes, upsertLocal]);
+
+  const listenToLive = useCallback(async (note) => {
     if (!note.audioUrl) {
       setError("Aucun flux audio disponible");
       return;
@@ -1650,7 +1636,6 @@ export default function App() {
         }
       });
     } catch (playError) {
-      setError(playError.message || "Impossible d'ecouter le live");
     }
   }, [stopPlayback]);
 
@@ -1662,7 +1647,12 @@ export default function App() {
         <Text style={styles.loadingText}>Chargement...</Text>
       </View>
     );
-  }  const progressRatio = playbackDur > 0 ? playbackPos / playbackDur : 0;
+  }
+
+  const progressRatio = playbackDur > 0 ? playbackPos / playbackDur : 0;
+
+  // --- UI RENDER ---
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
@@ -1717,6 +1707,41 @@ export default function App() {
           </Marker>
         )}
 
+        {selectedCluster ? (
+          <Marker
+            coordinate={{ latitude: selectedCluster.lat, longitude: selectedCluster.lng }}
+            tracksViewChanges={false}
+            onSelect={() => setSelectedCluster(null)}
+            onPress={(event) => {
+              event.stopPropagation?.();
+              setSelectedCluster(null);
+            }}
+          >
+            <ClusterPin archiveCount={selectedCluster.archiveCount} liveCount={selectedCluster.liveCount} />
+          </Marker>
+        ) : null}
+
+        {selectedCluster ? visibleMarkers.filter((entry) =>
+          entry.type === "note" &&
+          entry.note.isSpiderfied &&
+          selectedCluster.notes.some((clusterNote) => clusterNote.id === entry.note.id)
+        ).map((entry) => {
+          const note = entry.note;
+          return (
+            <Polyline
+              key={"cluster-link-" + note.id}
+              coordinates={[
+                { latitude: selectedCluster.lat, longitude: selectedCluster.lng },
+                { latitude: Number.isFinite(note.renderLat) ? note.renderLat : note.lat, longitude: Number.isFinite(note.renderLng) ? note.renderLng : note.lng }
+              ]}
+              strokeColor={note.isLive ? "rgba(255,71,87,0.34)" : "rgba(79,124,255,0.34)"}
+              strokeWidth={2}
+              lineDashPattern={[4, 6]}
+              lineCap="round"
+            />
+          );
+        }) : null}
+
         {visibleMarkers.map((entry) => {
           if (entry.type === "cluster") {
             return (
@@ -1747,10 +1772,10 @@ export default function App() {
               title={note.title}
               description={note.author}
               tracksViewChanges={note.isLive}
-              onSelect={() => focusNote(note, { animate: false })}
+              onSelect={() => focusNote(note, { animate: false, preserveCluster: note.isSpiderfied })}
               onPress={(event) => {
                 event.stopPropagation?.();
-                focusNote(note, { animate: false });
+                focusNote(note, { animate: false, preserveCluster: note.isSpiderfied });
               }}
             >
               {note.isLive ? (
@@ -1810,11 +1835,7 @@ export default function App() {
           </View>
         ) : null}
         {!composerOpen && error ? <View style={styles.errorBanner}><Text style={styles.errorText}>{error}</Text></View> : null}
-        {successMsg ? (
-          <FloatingSurface style={styles.successBanner} delay={40}>
-            <Text style={styles.successText}>{successMsg}</Text>
-          </FloatingSurface>
-        ) : null}
+        {successMsg ? <View style={styles.successBanner}><Text style={styles.successText}>{successMsg}</Text></View> : null}
       </SafeAreaView>
 
       <KeyboardAvoidingView
@@ -1916,12 +1937,31 @@ export default function App() {
                     <Text style={styles.coordText}>
                       Live: {composerCoords.lat.toFixed(4)}, {composerCoords.lng.toFixed(4)} - {isManualPos ? "Position privee" : "GPS reel"}
                     </Text>
+                    {liveActive ? (
+                      <View style={styles.liveStatusCard}>
+                        <View style={styles.liveStatusDot} />
+                        <View style={styles.liveStatusCopy}>
+                          <Text style={styles.liveStatusTitle}>Live en cours</Text>
+                          <Text style={styles.liveStatusMeta}>Votre live reste actif tant que vous ne l'arretez pas.</Text>
+                        </View>
+                      </View>
+                    ) : null}
                     <View style={styles.liveActions}>
-                      <Pressable style={[styles.miniBtn, liveActive && styles.disabled]} onPress={() => void startLive()} disabled={liveActive || liveBusy}>
-                        <Text style={styles.miniBtnText}>Go Live</Text>
-                      </Pressable>
-                      <Pressable style={[styles.miniBtn, !liveActive && styles.disabled]} onPress={() => void stopLive()} disabled={!liveActive || liveBusy}>
-                        <Text style={styles.miniBtnText}>Stop Live</Text>
+                      {!liveActive ? (
+                        <Pressable
+                          style={[styles.livePrimaryBtn, (liveActive || liveBusy) && styles.disabled]}
+                          onPress={() => void startLive()}
+                          disabled={liveActive || liveBusy}
+                        >
+                          <Text style={styles.livePrimaryText}>{liveBusy ? "Demarrage..." : "Go Live"}</Text>
+                        </Pressable>
+                      ) : null}
+                      <Pressable
+                        style={[styles.liveStopBtn, (!liveActive || liveBusy) && styles.disabled]}
+                        onPress={() => void stopLive()}
+                        disabled={!liveActive || liveBusy}
+                      >
+                        <Text style={styles.liveStopText}>{liveBusy ? "Arret..." : "Stop Live"}</Text>
                       </Pressable>
                     </View>
                   </View>
@@ -1931,52 +1971,10 @@ export default function App() {
           </View>
         )}
 
-        {!composerOpen && !showNoteDetails && selectedCluster ? (
-          <View style={[styles.panel, styles.clusterPanel]}>
-            <View style={styles.panelHeader}>
-              <View style={styles.clusterHeaderCopy}>
-                <Text style={styles.panelTitle}>Zone dense</Text>
-                <Text style={styles.clusterSummary}>{`${selectedCluster.liveCount} live - ${selectedCluster.archiveCount} sons`}</Text>
-              </View>
-              <Pressable onPress={() => setSelectedCluster(null)}>
-                <Text style={styles.closeText}>Fermer</Text>
-              </Pressable>
-            </View>
-            <Pressable
-              style={styles.clusterZoomBtn}
-              onPress={() => {
-                mapRef.current?.animateToRegion(
-                  {
-                    latitude: selectedCluster.lat,
-                    longitude: selectedCluster.lng,
-                    latitudeDelta: selectedCluster.latitudeDelta,
-                    longitudeDelta: selectedCluster.longitudeDelta
-                  },
-                  280
-                );
-                setSelectedCluster(null);
-              }}
-            >
-              <Text style={styles.clusterZoomText}>Zoomer ici</Text>
-            </Pressable>
-            <ScrollView style={styles.clusterList} showsVerticalScrollIndicator={false}>
-              {selectedCluster.notes.slice(0, 6).map((note) => (
-                <Pressable key={note.id} style={styles.clusterItem} onPress={() => focusNote(note, { animate: false })}>
-                  <View style={[styles.clusterItemDot, note.isLive ? styles.clusterItemDotLive : styles.clusterItemDotArchive]} />
-                  <View style={styles.clusterItemCopy}>
-                    <Text style={styles.clusterItemTitle} numberOfLines={1}>{note.title}</Text>
-                    <Text style={styles.clusterItemMeta} numberOfLines={1}>{`${note.isLive ? "Live" : "Son"} - ${note.author || "Mobile User"}`}</Text>
-                  </View>
-                  <Text style={styles.clusterItemArrow}>></Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
 
         {showNoteDetails && selectedNote && !composerOpen ? (
           showExpandedDetails ? (
-            <FloatingSurface style={[styles.panel, styles.expandedDetailsCard]} delay={35}>
+            <View style={[styles.panel, styles.expandedDetailsCard]}>
               <View style={styles.panelHeader}>
                 <Pressable style={styles.secondaryActionBtn} onPress={() => setShowExpandedDetails(false)}>
                   <Text style={styles.secondaryActionText}>Retour</Text>
@@ -2076,9 +2074,9 @@ export default function App() {
                   </View>
                 </View>
               </ScrollView>
-            </FloatingSurface>
+            </View>
           ) : (
-            <FloatingSurface style={[styles.panel, styles.miniDetailsCard]} delay={20}>
+            <View style={[styles.panel, styles.miniDetailsCard]}>
               <View style={styles.panelHeader}>
                 <View style={styles.miniDetailsHeaderCopy}>
                   <Text style={styles.panelTitle} numberOfLines={1}>{selectedNote.title}</Text>
@@ -2181,17 +2179,14 @@ export default function App() {
                   <Text style={styles.secondaryActionText}>Voir plus</Text>
                 </Pressable>
               </View>
-            </FloatingSurface>
+            </View>
           )
         ) : null}
 
         {!composerOpen && !showNoteDetails && !selectedCluster && playbackNote ? (
-          <FloatingSurface style={styles.miniPlayer} delay={50}>
+          <View style={styles.miniPlayer}>
             <Pressable style={styles.miniPlayerMain} onPress={() => focusNote(playbackNote)}>
-              <View style={styles.miniPlayerLead}>
-                <View style={styles.miniPlayerDot} />
-                <MiniPlayerWave active={Boolean(playingId === playbackNote.id)} color={playbackNote.isLive ? "#ff8a97" : "#8fb2ff"} />
-              </View>
+              <View style={styles.miniPlayerDot} />
               <View style={styles.miniPlayerCopy}>
                 <Text style={styles.miniPlayerTitle} numberOfLines={1}>{playbackNote.title}</Text>
                 <Text style={styles.miniPlayerMeta}>
@@ -2204,21 +2199,46 @@ export default function App() {
             <Pressable style={styles.miniPlayerStop} onPress={() => void stopPlayback()}>
               <Text style={styles.miniPlayerStopText}>Stop</Text>
             </Pressable>
-          </FloatingSurface>
+          </View>
+        ) : null}
+
+        {!composerOpen && !showNoteDetails && !selectedCluster && liveActive ? (
+          <View style={styles.liveDock}>
+            <Pressable
+              style={styles.liveDockMain}
+              onPress={() => {
+                setComposerIntent("live");
+                setComposerOpen(true);
+                setCreationMenuOpen(false);
+                setMenuOpen(false);
+              }}
+            >
+              <View style={styles.liveDockBeacon}>
+                <View style={styles.liveDockBeaconInner} />
+              </View>
+              <View style={styles.liveDockCopy}>
+                <Text style={styles.liveDockTitle}>Live en cours</Text>
+                <Text style={styles.liveDockMeta}>Touchez ici pour retrouver les controles.</Text>
+              </View>
+            </Pressable>
+            <Pressable style={[styles.liveDockStop, liveBusy && styles.disabled]} onPress={() => void stopLive()} disabled={liveBusy}>
+              <Text style={styles.liveDockStopText}>{liveBusy ? "..." : "Stop"}</Text>
+            </Pressable>
+          </View>
         ) : null}
 
         {!composerOpen && !showNoteDetails && !selectedCluster ? (
           <>
             {creationMenuOpen ? <Pressable style={styles.fabBackdrop} onPress={() => setCreationMenuOpen(false)} /> : null}
             {creationMenuOpen ? (
-              <FloatingSurface style={styles.fabMenu} delay={25}>
+              <View style={styles.fabMenu}>
                 <Pressable style={[styles.fabOption, styles.fabOptionAudio]} onPress={() => openComposerFor("audio")}>
                   <Text style={styles.fabOptionText}>Audio</Text>
                 </Pressable>
                 <Pressable style={[styles.fabOption, styles.fabOptionLive]} onPress={() => openComposerFor("live")}>
                   <Text style={styles.fabOptionText}>Live</Text>
                 </Pressable>
-              </FloatingSurface>
+              </View>
             ) : null}
             <Pressable
               style={styles.fab}
@@ -2228,29 +2248,7 @@ export default function App() {
                 setCreationMenuOpen((prev) => !prev);
               }}
             >
-              <Animated.Text
-                style={[
-                  styles.fabText,
-                  {
-                    transform: [
-                      {
-                        rotate: fabProgress.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: ["0deg", "45deg"]
-                        })
-                      },
-                      {
-                        scale: fabProgress.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [1, 1.08]
-                        })
-                      }
-                    ]
-                  }
-                ]}
-              >
-                +
-              </Animated.Text>
+              <Text style={styles.fabText}>{creationMenuOpen ? "x" : "+"}</Text>
             </Pressable>
           </>
         ) : null}
@@ -2286,16 +2284,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'rgba(12, 15, 24, 0.82)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    elevation: 7
+    backgroundColor: 'rgba(15, 16, 23, 0.8)',
+    padding: 10,
+    borderRadius: 12,
   },
   title: {
     color: "#fff",
@@ -2331,108 +2322,92 @@ const styles = StyleSheet.create({
   successBanner: {
     alignSelf: "center",
     marginTop: 8,
-    paddingVertical: 11,
-    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: 999,
-    backgroundColor: "rgba(11, 15, 24, 0.96)",
+    backgroundColor: "rgba(20, 22, 31, 0.96)",
     borderWidth: 1,
-    borderColor: "rgba(143,178,255,0.2)",
+    borderColor: "rgba(255,255,255,0.08)",
     shadowColor: "#000",
     shadowOpacity: 0.18,
-    shadowRadius: 14,
-    elevation: 7
+    shadowRadius: 10,
+    elevation: 6
   },
-  successText: { color: "#f7fbff", fontSize: 12, textAlign: "center", fontWeight: "700", letterSpacing: 0.2 },
+  successText: { color: "#f7fbff", fontSize: 12, textAlign: "center", fontWeight: "700" },
   quickExploreRow: {
     flexDirection: 'row',
     gap: 8,
     marginTop: 10
   },
   quickExploreBtn: {
-    backgroundColor: 'rgba(14, 17, 26, 0.94)',
+    backgroundColor: 'rgba(20, 22, 31, 0.92)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-    paddingVertical: 11,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 5
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 999
   },
   quickExploreText: {
     color: '#f7fbff',
     fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.2
+    fontWeight: '700'
   },
 
   miniPlayer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 20,
-    marginBottom: 14,
-    borderRadius: 22,
-    backgroundColor: 'rgba(11, 15, 24, 0.97)',
+    marginBottom: 12,
+    borderRadius: 18,
+    backgroundColor: 'rgba(18, 20, 29, 0.96)',
     borderWidth: 1,
-    borderColor: 'rgba(143,178,255,0.12)',
+    borderColor: 'rgba(255,255,255,0.08)',
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOpacity: 0.26,
-    shadowRadius: 16,
-    elevation: 10
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    elevation: 8
   },
   miniPlayerMain: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 13,
-    paddingLeft: 15,
+    paddingVertical: 12,
+    paddingLeft: 14,
     paddingRight: 10
   },
-  miniPlayerLead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: 42,
-    marginRight: 10
-  },
   miniPlayerDot: {
-    width: 11,
-    height: 11,
+    width: 10,
+    height: 10,
     borderRadius: 999,
-    backgroundColor: '#ff5e70',
-    marginRight: 10,
-    shadowColor: '#ff5e70',
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 4
+    backgroundColor: '#ff4757',
+    marginRight: 12
   },
   miniPlayerCopy: {
     flex: 1
   },
   miniPlayerTitle: {
     color: '#fff',
-    fontSize: 15,
-    fontWeight: '800'
+    fontSize: 14,
+    fontWeight: '700'
   },
   miniPlayerMeta: {
-    color: '#9fb2cc',
+    color: '#a4b0be',
     fontSize: 12,
-    marginTop: 3
+    marginTop: 2
   },
   miniPlayerStop: {
     alignSelf: 'stretch',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(255,71,87,0.14)',
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(255,71,87,0.12)',
     borderLeftWidth: 1,
     borderLeftColor: 'rgba(255,255,255,0.06)'
   },
   miniPlayerStopText: {
-    color: '#ff9aa4',
+    color: '#ff8a97',
     fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.2
+    fontWeight: '800'
   },
 
   bottomSheetContainer: {
@@ -2443,28 +2418,26 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end'
   },
   panel: {
-    backgroundColor: '#161922',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#1f2029',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     padding: 20,
     paddingBottom: 40,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.34,
-    shadowRadius: 16,
-    elevation: 9,
-    maxHeight: "68%"
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+    maxHeight: "60%"
   },
   panelHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16
+    marginBottom: 15
   },
-  panelTitle: { color: "#fff", fontSize: 18, fontWeight: "800", flex: 1 },
-  closeText: { color: "#ff6f7d", fontWeight: "700" },
+  panelTitle: { color: "#fff", fontSize: 18, fontWeight: "bold", flex: 1 },
+  closeText: { color: "#ff4757", fontWeight: "600" },
 
   composerScroll: {
     flexGrow: 0
@@ -2543,7 +2516,10 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 4
   },
-  recordStatus: { color: '#ff6b81', fontSize: 13, fontWeight: '600' },  waveformContainer: {
+  recordStatus: { color: '#ff6b81', fontSize: 13, fontWeight: '600' },
+
+  // Feature 4: Waveform
+  waveformContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'center',
@@ -2556,7 +2532,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#ff4757',
     borderRadius: 2,
     minHeight: 4
-  },  previewRow: {
+  },
+
+  // Feature 3: Preview
+  previewRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 8,
@@ -2590,27 +2569,75 @@ const styles = StyleSheet.create({
   },
   liveLabel: { color: '#a4b0be', marginBottom: 10, fontSize: 12 },
   liveActions: { flexDirection: 'row', gap: 10 },
-  miniBtn: {
-    backgroundColor: '#eccc68',
-    paddingVertical: 8,
+  liveStatusCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,71,87,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,107,129,0.28)",
+    borderRadius: 16,
+    paddingVertical: 11,
     paddingHorizontal: 12,
-    borderRadius: 6
+    marginBottom: 12
   },
-  miniBtnText: { color: '#2f3542', fontWeight: 'bold', fontSize: 12 },
+  liveStatusDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 999,
+    backgroundColor: "#ff4757",
+    marginRight: 10
+  },
+  liveStatusCopy: {
+    flex: 1
+  },
+  liveStatusTitle: {
+    color: "#fff5f6",
+    fontSize: 14,
+    fontWeight: "700"
+  },
+  liveStatusMeta: {
+    color: "#ffb3bb",
+    fontSize: 12,
+    marginTop: 2
+  },
+  livePrimaryBtn: {
+    flex: 1,
+    backgroundColor: "#ff4757",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    shadowColor: "#ff4757",
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 5
+  },
+  livePrimaryText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  liveStopBtn: {
+    flex: 1,
+    backgroundColor: "#2f3542",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: "center"
+  },
+  liveStopText: { color: "#f1f2f6", fontWeight: "800", fontSize: 14 },
 
   fab: {
     alignSelf: 'flex-end',
     margin: 20,
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: '#ff4757',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: "#ff4757",
-    shadowOpacity: 0.32,
-    shadowRadius: 14,
-    elevation: 10
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 6
   },
   noteLabelRow: {
     flexDirection: 'row',
@@ -2624,7 +2651,6 @@ const styles = StyleSheet.create({
     borderRadius: 999
   },
   noteLabel_live: { backgroundColor: 'rgba(255,71,87,0.16)' },
-  noteLabel_fresh: { backgroundColor: 'rgba(46,213,115,0.18)' },
   noteLabel_popular: { backgroundColor: 'rgba(79,124,255,0.16)' },
   noteLabel_liked: { backgroundColor: 'rgba(255,255,255,0.12)' },
   noteLabel_warning: { backgroundColor: 'rgba(255,184,77,0.18)' },
@@ -2633,33 +2659,32 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700'
   },
-  fabText: { color: '#fff', fontSize: 31, marginTop: -2, fontWeight: '700' },
+  fabText: { color: '#fff', fontSize: 30, marginTop: -2 },
   fabBackdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "transparent"
   },
   fabMenu: {
     position: "absolute",
-    right: 18,
-    bottom: 18,
-    width: 194,
-    height: 194,
+    right: 20,
+    bottom: 20,
+    width: 180,
+    height: 180,
     pointerEvents: "box-none"
   },
   fabOption: {
     position: "absolute",
-    width: 82,
-    height: 82,
+    width: 76,
+    height: 76,
     borderRadius: 999,
     backgroundColor: "#ff4757",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderWidth: 0,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#ff4757",
+    shadowColor: "#000",
     shadowOpacity: 0.22,
-    shadowRadius: 12,
-    elevation: 8
+    shadowRadius: 10,
+    elevation: 6
   },
   fabOptionAudio: {
     right: 60,
@@ -2677,7 +2702,7 @@ const styles = StyleSheet.create({
 
   clusterPanel: {
     paddingBottom: 20,
-    maxHeight: "44%"
+    maxHeight: "50%"
   },
   clusterHeaderCopy: {
     flex: 1,
@@ -2706,10 +2731,60 @@ const styles = StyleSheet.create({
   clusterList: {
     flexGrow: 0
   },
+  clusterSplitRow: {
+    flexDirection: "row",
+    gap: 12
+  },
+  clusterLane: {
+    flex: 1,
+    borderRadius: 22,
+    paddingHorizontal: 10,
+    paddingTop: 12,
+    paddingBottom: 10,
+    minHeight: 220,
+    maxHeight: 280
+  },
+  clusterLaneArchive: {
+    backgroundColor: "rgba(79,124,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(116,185,255,0.26)"
+  },
+  clusterLaneLive: {
+    backgroundColor: "rgba(255,71,87,0.13)",
+    borderWidth: 1,
+    borderColor: "rgba(255,107,129,0.24)"
+  },
+  clusterLaneHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10
+  },
+  clusterLaneTitle: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800"
+  },
+  clusterLaneCount: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "800",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 8
+  },
+  clusterEmptyText: {
+    color: "#dfe6f6",
+    fontSize: 12,
+    lineHeight: 17,
+    paddingHorizontal: 4,
+    paddingTop: 6
+  },
   clusterItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: "rgba(15,16,23,0.22)",
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 12,
@@ -2742,17 +2817,95 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginLeft: 10
   },
+  liveDock: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,71,87,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,107,129,0.28)",
+    borderRadius: 22,
+    marginHorizontal: 18,
+    marginBottom: 10,
+    overflow: "hidden"
+  },
+  liveDockMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 13
+  },
+  liveDockBeacon: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,71,87,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12
+  },
+  liveDockBeaconInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: "#ff4757"
+  },
+  liveDockCopy: {
+    flex: 1
+  },
+  liveDockTitle: {
+    color: "#fff6f7",
+    fontSize: 14,
+    fontWeight: "800"
+  },
+  liveDockMeta: {
+    color: "#ffb4bc",
+    fontSize: 12,
+    marginTop: 2
+  },
+  liveDockStop: {
+    backgroundColor: "#ff4757",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    alignSelf: "stretch",
+    justifyContent: "center"
+  },
+  liveDockStopText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800"
+  },
 
   detailsPanel: {
     paddingBottom: 40
   },
   miniDetailsCard: {
-    paddingBottom: 22,
-    maxHeight: 340
+    paddingBottom: 18,
+    maxHeight: 332,
+    marginHorizontal: 12,
+    marginBottom: 14,
+    borderRadius: 26,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#1a1b24'
   },
   expandedDetailsCard: {
     paddingBottom: 18,
-    maxHeight: "76%"
+    maxHeight: "76%",
+    marginHorizontal: 10,
+    marginBottom: 14,
+    borderRadius: 28,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#1a1b24'
   },
   expandedDetailsScroll: {
     flexGrow: 0
@@ -2804,20 +2957,19 @@ const styles = StyleSheet.create({
   },
   playSection: { marginBottom: 0 },
   playBtn: {
-    backgroundColor: '#ff5b6d',
-    paddingVertical: 15,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-    shadowColor: '#ff5b6d',
-    shadowOpacity: 0.24,
-    shadowRadius: 10,
-    elevation: 7
+    backgroundColor: '#2f3542',
+    paddingVertical: 14,
+    paddingHorizontal: 15,
+    borderRadius: 12,
+    alignItems: 'center'
   },
   livePlayBtn: {
-    backgroundColor: '#ff4757'
+    backgroundColor: '#c0392b'
   },
-  playText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },  progressSection: {
+  playText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+
+  // Feature 5: Progress bar
+  progressSection: {
     marginTop: 12
   },
   progressRow: {
@@ -2836,15 +2988,15 @@ const styles = StyleSheet.create({
     paddingVertical: 8
   },
   progressBarBg: {
-    height: 6,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 999,
+    height: 4,
+    backgroundColor: '#2f3542',
+    borderRadius: 2,
     overflow: 'hidden'
   },
   progressBarFill: {
-    height: 6,
+    height: 4,
     backgroundColor: '#ff4757',
-    borderRadius: 999
+    borderRadius: 2
   },
 
   voteRow: {
@@ -3022,7 +3174,6 @@ const styles = StyleSheet.create({
     fontWeight: "600"
   }
 });
-
 
 
 
